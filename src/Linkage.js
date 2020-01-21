@@ -163,35 +163,76 @@ function movePoint(t: t, theta: number, ref: ref, p: Point): void {
   }
 }
 
-function addJoint(t: t, theta: number, p1: Point, p2: Point, ref: ref): void {
-  const p2Ref = `p${t.refCount + 1}`;
+function addJoint(t: t, theta: number, p1: Point, p3: Point, ref: ref): void {
+  const p1Ref = `p${t.refCount + 1}`;
   const p3Ref = `p${t.refCount + 2}`;
 
   const {points, lines} = nullthrows(calc(t, theta));
 
-  t.grounds[p2Ref] = p2;
-  t.hinges.push({
-    len1: euclid(points[ref], p2),
-    len2: euclid(p1, p2),
-    p1: ref,
-    p2: p2Ref,
-    p3: p3Ref,
-  });
+  const len1 = euclid(points[ref], p3);
+  const len2 = euclid(p1, p3);
+  const p3next = calcHinge(points[ref], p1, len1, len2);
+  if (!p3next) {
+    return;
+  }
+
+  if (euclid(p3next, p3) < 1e-6) {
+    t.hinges.push({
+      len1,
+      len2,
+      p1: ref,
+      p2: p1Ref,
+      p3: p3Ref,
+    });
+  } else {
+    t.hinges.push({
+      len1: len2,
+      len2: len1,
+      p1: p1Ref,
+      p2: ref,
+      p3: p3Ref,
+    });
+  }
+
+  t.grounds[p1Ref] = p1;
   t.refCount += 2;
 }
 
-function addCoupler(t: t, theta: number, p: Point, ref1: ref, ref2: ref): void {
+function addCoupler(
+  t: t,
+  theta: number,
+  p3: Point,
+  ref1: ref,
+  ref2: ref,
+): void {
   const p3Ref = `p${t.refCount + 1}`;
 
   const {points, lines} = nullthrows(calc(t, theta));
+  const len1 = euclid(points[ref1], p3);
+  const len2 = euclid(points[ref2], p3);
+  const p3next = calcHinge(points[ref1], points[ref2], len1, len2);
+  if (!p3next) {
+    return;
+  }
 
-  t.hinges.push({
-    len1: euclid(points[ref1], p),
-    len2: euclid(points[ref2], p),
-    p1: ref1,
-    p2: ref2,
-    p3: p3Ref,
-  });
+  if (euclid(p3next, p3) < 1e-6) {
+    t.hinges.push({
+      len1,
+      len2,
+      p1: ref1,
+      p2: ref2,
+      p3: p3Ref,
+    });
+  } else {
+    t.hinges.push({
+      len2,
+      len1,
+      p1: ref2,
+      p2: ref1,
+      p3: p3Ref,
+    });
+  }
+
   t.refCount += 1;
 }
 

@@ -285,11 +285,17 @@ function onMouseUp(t: TDrawing, time: number, mouse: Point, state: TUserState) {
     const {uistate} = state;
     const theta = time * 0.005;
     switch (uistate.type) {
-      case 'pgg':
-      case 'gpg':
-      case 'ggp': {
+      case 'ggp':
+      case 'gpg': {
         const {p1, p2, ref} = uistate;
         Linkage.addJoint(linkage, theta, p1, p2, ref);
+        state.uistate = {type: 'none'};
+        break;
+      }
+
+      case 'pgg': {
+        const {p1, p2, ref} = uistate;
+        Linkage.addJoint(linkage, theta, p2, p1, ref);
         state.uistate = {type: 'none'};
         break;
       }
@@ -306,6 +312,10 @@ function onMouseUp(t: TDrawing, time: number, mouse: Point, state: TUserState) {
   }
 
   state.mouse = null;
+}
+
+function onEscape(t: TDrawing, time: number, state: TUserState) {
+  state.uistate = {type: 'none'};
 }
 
 const linkage = Linkage.make({
@@ -338,6 +348,7 @@ Drawing.start(
   onMouseDown,
   onMouseMove,
   onMouseUp,
+  onEscape,
   {
     linkage,
     mouse: null,
