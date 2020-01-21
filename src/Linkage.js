@@ -225,8 +225,8 @@ function addCoupler(
     });
   } else {
     t.hinges.push({
-      len2,
-      len1,
+      len1: len2,
+      len2: len1,
       p1: ref2,
       p2: ref1,
       p3: p3Ref,

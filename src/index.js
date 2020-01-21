@@ -6,6 +6,8 @@ import type {t as TLinkage, ref} from './Linkage';
 const Drawing = require('./Drawing');
 const Linkage = require('./Linkage');
 
+const euclid = require('./euclid');
+
 declare var window: TWindow;
 
 type UIState =
@@ -162,14 +164,21 @@ function onMouseMove(
   mouse: Point,
   state: TUserState,
 ) {
-  if (!state.mouse || !state.mouse.pointRef) {
+  const stateMouse = state.mouse;
+  if (!stateMouse || !stateMouse.pointRef) {
     return;
   }
+  const mouseRef = stateMouse.pointRef;
 
-  state.mouse.movedWhileDown = true;
+  if (euclid(stateMouse.start, mouse) < 1e-2) {
+    return;
+  }
+  console.log(euclid(stateMouse.start, mouse));
+
+  stateMouse.movedWhileDown = true;
 
   const theta = time * 0.005;
-  Linkage.movePoint(state.linkage, theta, state.mouse.pointRef, mouse);
+  Linkage.movePoint(state.linkage, theta, mouseRef, mouse);
 }
 
 function getUIState(uistate: UIState, mouse: MouseState, mousePoint): UIState {
@@ -314,8 +323,12 @@ function onMouseUp(t: TDrawing, time: number, mouse: Point, state: TUserState) {
   state.mouse = null;
 }
 
-function onEscape(t: TDrawing, time: number, state: TUserState) {
-  state.uistate = {type: 'none'};
+function onKeyDown(t: TDrawing, time: number, key: string, state: TUserState) {
+  switch (key) {
+    case 'Escape':
+      state.uistate = {type: 'none'};
+      break;
+  }
 }
 
 const linkage = Linkage.make({
@@ -348,7 +361,7 @@ Drawing.start(
   onMouseDown,
   onMouseMove,
   onMouseUp,
-  onEscape,
+  onKeyDown,
   {
     linkage,
     mouse: null,

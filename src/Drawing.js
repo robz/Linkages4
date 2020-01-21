@@ -103,7 +103,7 @@ function start<TUserState>(
   onMouseDown: (t, number, Point, TUserState) => void,
   onMouseMove: (t, number, Point, TUserState) => void,
   onMouseUp: (t, number, Point, TUserState) => void,
-  onEscape: (t, number, TUserState) => void,
+  onKeyDown: (t, number, string, TUserState) => void,
   userState: TUserState,
 ) {
   const state: TDrawingState = {
@@ -154,9 +154,8 @@ function start<TUserState>(
         state.isPaused = true;
         state.offsetTime += time - state.startTime;
       }
-    } else if (e.key === 'Escape') {
-      onEscape(t, state.offsetTime, userState);
     }
+    onKeyDown(t, state.offsetTime, e.key, userState);
   });
 
   t.canvas.addEventListener('mousemove', (e: MouseEvent) => {
