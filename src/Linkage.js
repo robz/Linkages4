@@ -4,12 +4,12 @@ import type {Point} from './euclid';
 
 export type ref = string;
 
-type Spec = {
+type Spec = {|
   grounds: {[ref]: Point},
   rotaries: Array<{len: number, p1: ref, p2: ref, phase: number}>,
   hinges: Array<{len1: number, len2: number, p1: ref, p2: ref, p3: ref}>,
-};
-export opaque type t = Spec;
+|};
+export type t = {|refCount: number, ...Spec|};
 
 const euclid = require('./euclid');
 
@@ -79,7 +79,7 @@ function calc(
   return {points, lines};
 }
 
-function getPoint(t: t, theta: number, p0: Point, threshold: number): ?ref {
+function getPointRef(t: t, theta: number, p0: Point, threshold: number): ?ref {
   const data = calc(t, theta);
   if (!data) {
     return null;
@@ -163,13 +163,78 @@ function movePoint(t: t, theta: number, ref: ref, p: Point): void {
   }
 }
 
+function addJoint(t: t, theta: number, p1: Point, p2: Point, ref: ref): void {
+  const p2Ref = `p${t.refCount + 1}`;
+  const p3Ref = `p${t.refCount + 2}`;
+
+  const {points, lines} = nullthrows(calc(t, theta));
+
+  t.grounds[p2Ref] = p2;
+  t.hinges.push({
+    len1: euclid(points[ref], p2),
+    len2: euclid(p1, p2),
+    p1: ref,
+    p2: p2Ref,
+    p3: p3Ref,
+  });
+  t.refCount += 2;
+}
+
+function addCoupler(t: t, theta: number, p: Point, ref1: ref, ref2: ref): void {
+  const p3Ref = `p${t.refCount + 1}`;
+
+  const {points, lines} = nullthrows(calc(t, theta));
+
+  t.hinges.push({
+    len1: euclid(points[ref1], p),
+    len2: euclid(points[ref2], p),
+    p1: ref1,
+    p2: ref2,
+    p3: p3Ref,
+  });
+  t.refCount += 1;
+}
+
+function parseRef(ref: string): {kind: string, num: number} {
+  const match = ref.match(/([p])([0-9]+)/);
+  if (!match) {
+    throw new Error('invalid ref ' + ref);
+  }
+  return {kind: match[1], num: Number(match[2])};
+}
+
 function make(spec: Spec): t {
-  return spec;
+  let refCount = 0;
+
+  for (const ref of Object.keys(spec.grounds)) {
+    refCount = Math.max(refCount, parseRef(ref).num);
+  }
+
+  for (const rotary of spec.rotaries) {
+    refCount = Math.max(
+      refCount,
+      parseRef(rotary.p1).num,
+      parseRef(rotary.p2).num,
+    );
+  }
+
+  for (const hinge of spec.hinges) {
+    refCount = Math.max(
+      refCount,
+      parseRef(hinge.p1).num,
+      parseRef(hinge.p2).num,
+      parseRef(hinge.p3).num,
+    );
+  }
+
+  return {...spec, refCount};
 }
 
 module.exports = {
   calc,
   make,
-  getPoint,
+  getPointRef,
   movePoint,
+  addJoint,
+  addCoupler,
 };

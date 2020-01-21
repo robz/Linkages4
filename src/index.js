@@ -8,19 +8,90 @@ const Linkage = require('./Linkage');
 
 declare var window: TWindow;
 
+type UIState =
+  | {|type: 'none'|}
+  | {|
+      type: 'p',
+      ref: ref,
+    |}
+  | {|
+      type: 'g',
+      p: Point,
+    |}
+  | {|
+      type: 'pp',
+      ref1: ref,
+      ref2: ref,
+    |}
+  | {|
+      type: 'pg',
+      ref: ref,
+      p: Point,
+    |}
+  | {|
+      type: 'gp',
+      ref: ref,
+      p: Point,
+    |}
+  | {|
+      type: 'gg',
+      p1: Point,
+      p2: Point,
+    |}
+  | {|
+      type: 'ppg',
+      ref1: ref,
+      ref2: ref,
+      p: Point,
+    |}
+  | {|
+      type: 'pgp',
+      ref1: ref,
+      ref2: ref,
+      p: Point,
+    |}
+  | {|
+      type: 'gpp',
+      ref1: ref,
+      ref2: ref,
+      p: Point,
+    |}
+  | {|
+      type: 'pgg',
+      ref: ref,
+      p1: Point,
+      p2: Point,
+    |}
+  | {|
+      type: 'gpg',
+      ref: ref,
+      p1: Point,
+      p2: Point,
+    |}
+  | {|
+      type: 'ggp',
+      ref: ref,
+      p1: Point,
+      p2: Point,
+    |};
+
+type MouseState = {|
+  pointRef: ?ref,
+  start: Point,
+  movedWhileDown: boolean,
+|};
+
 type TUserState = {
   linkage: TLinkage,
-  mouse: ?{
-    point: ref,
-    start: Point,
-  },
+  mouse: ?MouseState,
+  uistate: UIState,
 };
 
 function draw(
   drawing: TDrawing,
   time: number,
   mouse: ?Point,
-  {linkage}: TUserState,
+  {linkage, uistate}: TUserState,
 ) {
   Drawing.clearCanvas(drawing);
   Drawing.drawAxis(drawing);
@@ -31,6 +102,41 @@ function draw(
     const {points, lines} = data;
     for (const line of lines) {
       Drawing.drawLines(drawing, line);
+    }
+
+    if (mouse) {
+      switch (uistate.type) {
+        case 'none':
+          break;
+
+        case 'p':
+          Drawing.drawLines(drawing, [points[uistate.ref], mouse]);
+          break;
+
+        case 'g':
+          Drawing.drawLines(drawing, [uistate.p, mouse]);
+          break;
+
+        case 'gp':
+          Drawing.drawLines(drawing, [uistate.p, mouse, points[uistate.ref]]);
+          break;
+
+        case 'pg':
+          Drawing.drawLines(drawing, [points[uistate.ref], uistate.p, mouse]);
+          break;
+
+        case 'pp':
+          Drawing.drawLines(drawing, [
+            points[uistate.ref1],
+            mouse,
+            points[uistate.ref2],
+          ]);
+          break;
+
+        case 'gg':
+          Drawing.drawLines(drawing, [uistate.p1, uistate.p2, mouse]);
+          break;
+      }
     }
   }
 
@@ -46,10 +152,8 @@ function onMouseDown(
   state: TUserState,
 ) {
   const theta = time * 0.005;
-  const point = Linkage.getPoint(state.linkage, theta, mouse, 0.1);
-  if (point) {
-    state.mouse = {point, start: [...mouse]};
-  }
+  const pointRef = Linkage.getPointRef(state.linkage, theta, mouse, 0.1);
+  state.mouse = {pointRef, start: [...mouse], movedWhileDown: false};
 }
 
 function onMouseMove(
@@ -58,14 +162,149 @@ function onMouseMove(
   mouse: Point,
   state: TUserState,
 ) {
-  if (!state.mouse) {
+  if (!state.mouse || !state.mouse.pointRef) {
     return;
   }
+
+  state.mouse.movedWhileDown = true;
+
   const theta = time * 0.005;
-  Linkage.movePoint(state.linkage, theta, state.mouse.point, mouse);
+  Linkage.movePoint(state.linkage, theta, state.mouse.pointRef, mouse);
+}
+
+function getUIState(uistate: UIState, mouse: MouseState, mousePoint): UIState {
+  const ref = mouse.pointRef;
+  if (ref) {
+    switch (uistate.type) {
+      case 'none':
+        return {
+          type: 'p',
+          ref,
+        };
+
+      case 'p':
+        return {
+          type: 'pp',
+          ref1: uistate.ref,
+          ref2: ref,
+        };
+
+      case 'g':
+        return {
+          type: 'gp',
+          ref,
+          p: uistate.p,
+        };
+
+      case 'pg':
+        return {
+          type: 'pgp',
+          ref1: uistate.ref,
+          ref2: ref,
+          p: uistate.p,
+        };
+
+      case 'gg':
+        return {
+          type: 'ggp',
+          ref,
+          p1: uistate.p1,
+          p2: uistate.p2,
+        };
+
+      case 'gp':
+        return {
+          type: 'gpp',
+          ref1: uistate.ref,
+          ref2: ref,
+          p: uistate.p,
+        };
+    }
+  }
+
+  switch (uistate.type) {
+    case 'none':
+      return {
+        type: 'g',
+        p: mousePoint,
+      };
+
+    case 'g':
+      return {
+        type: 'gg',
+        p1: uistate.p,
+        p2: mousePoint,
+      };
+
+    case 'p':
+      return {
+        type: 'pg',
+        ref: uistate.ref,
+        p: mousePoint,
+      };
+
+    case 'pg':
+      return {
+        type: 'pgg',
+        ref: uistate.ref,
+        p1: uistate.p,
+        p2: mousePoint,
+      };
+
+    case 'gp':
+      return {
+        type: 'gpg',
+        ref: uistate.ref,
+        p1: uistate.p,
+        p2: mousePoint,
+      };
+
+    case 'pp':
+      return {
+        type: 'ppg',
+        ref1: uistate.ref1,
+        ref2: uistate.ref2,
+        p: mousePoint,
+      };
+  }
+
+  return {
+    type: 'none',
+  };
 }
 
 function onMouseUp(t: TDrawing, time: number, mouse: Point, state: TUserState) {
+  if (!state.mouse) {
+    return;
+  }
+
+  if (!state.mouse.movedWhileDown) {
+    state.uistate = getUIState(state.uistate, state.mouse, mouse);
+
+    // handle side effects
+    const {uistate} = state;
+    const theta = time * 0.005;
+    switch (uistate.type) {
+      case 'pgg':
+      case 'gpg':
+      case 'ggp': {
+        const {p1, p2, ref} = uistate;
+        Linkage.addJoint(linkage, theta, p1, p2, ref);
+        state.uistate = {type: 'none'};
+        break;
+      }
+
+      case 'gpp':
+      case 'pgp':
+      case 'ppg': {
+        const {p, ref1, ref2} = uistate;
+        Linkage.addCoupler(linkage, theta, p, ref1, ref2);
+        state.uistate = {type: 'none'};
+        break;
+      }
+    }
+  }
+
   state.mouse = null;
 }
 
@@ -102,5 +341,6 @@ Drawing.start(
   {
     linkage,
     mouse: null,
+    uistate: {type: 'none'},
   },
 );
