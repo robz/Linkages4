@@ -2,6 +2,8 @@
 
 import type {Point} from './euclid';
 
+const euclid = require('./euclid');
+
 export type ref = string;
 
 type Spec = {|
@@ -9,9 +11,7 @@ type Spec = {|
   rotaries: Array<{len: number, p1: ref, p2: ref, phase: number}>,
   hinges: Array<{len1: number, len2: number, p1: ref, p2: ref, p3: ref}>,
 |};
-export type t = {|refCount: number, ...Spec|};
-
-const euclid = require('./euclid');
+export opaque type t = {|refCount: number, ...Spec|};
 
 function calcHinge(
   [x1, y1]: Point,
@@ -79,7 +79,12 @@ function calc(
   return {points, lines};
 }
 
-function getPointRef(t: t, theta: number, p0: Point, threshold: number): ?ref {
+function getPoint(
+  t: t,
+  theta: number,
+  p0: Point,
+  threshold: number,
+): ?{ref: ref, point: Point} {
   const data = calc(t, theta);
   if (!data) {
     return null;
@@ -88,7 +93,7 @@ function getPointRef(t: t, theta: number, p0: Point, threshold: number): ?ref {
 
   for (const ref of Object.keys(points)) {
     if (euclid(points[ref], p0) < threshold) {
-      return ref;
+      return {ref, point: points[ref]};
     }
   }
 
@@ -274,7 +279,7 @@ function make(spec: Spec): t {
 module.exports = {
   calc,
   make,
-  getPointRef,
+  getPoint,
   movePoint,
   addJoint,
   addCoupler,

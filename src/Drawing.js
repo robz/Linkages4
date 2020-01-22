@@ -25,7 +25,7 @@ type TDrawingState = {
   mouse: ?Point,
 };
 
-const SHOW_FPS = false;
+const SHOW_FPS = true;
 
 function drawLines(t: t, points: Array<Point>) {
   const {ctx} = t;
