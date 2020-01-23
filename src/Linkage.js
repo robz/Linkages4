@@ -11,7 +11,7 @@ type Spec = {|
   rotaries: Array<{len: number, p1: ref, p2: ref, phase: number}>,
   hinges: Array<{len1: number, len2: number, p1: ref, p2: ref, p3: ref}>,
 |};
-export opaque type t = {|refCount: number, ...Spec|};
+export opaque type t = {|refCount: number, optimizing: boolean, ...Spec|};
 
 function calcHinge(
   [x1, y1]: Point,
@@ -253,6 +253,43 @@ function calcPath(t: t, ref: ref, n: number): Array<Point> {
   return path;
 }
 
+function calcError(path1: Array<Point>, path2: Array<Point>): number {
+  let error = 0;
+  for (let i = 0; i < path1.length; i++) {
+    error += euclid(path1[i], path2[i]);
+  }
+  return error;
+}
+
+function optimize(t: t, ref: ref, path: Array<Point>): void {
+  t.optimizing = true;
+
+  let prevError = calcError(path, calcPath(t, ref, path.length));
+  function tweak() {
+    const prevGrounds = {};
+    for (const ref of Object.keys(t.grounds)) {
+      prevGrounds[ref] = [...t.grounds[ref]];
+      t.grounds[ref][0] += Math.random() * 0.01;
+      t.grounds[ref][1] += Math.random() * 0.01;
+    }
+
+    const error = calcError(path, calcPath(t, ref, path.length));
+    if (error > prevError) {
+      t.grounds = prevGrounds;
+    } else {
+      prevError = error;
+    }
+    if (t.optimizing) {
+      setTimeout(tweak, 10);
+    }
+  }
+  setTimeout(tweak, 10);
+}
+
+function stopOptimizing(t: t) {
+  t.optimizing = false;
+}
+
 function parseRef(ref: string): {kind: string, num: number} {
   const match = ref.match(/([p])([0-9]+)/);
   if (!match) {
@@ -285,7 +322,7 @@ function make(spec: Spec): t {
     );
   }
 
-  return {...spec, refCount};
+  return {...spec, refCount, optimzing: false};
 }
 
 module.exports = {
@@ -296,4 +333,6 @@ module.exports = {
   addJoint,
   addCoupler,
   calcPath,
+  optimize,
+  stopOptimizing,
 };

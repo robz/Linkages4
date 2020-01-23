@@ -12,70 +12,20 @@ declare var window: TWindow;
 
 type UIState =
   | {|type: 'none'|}
-  | {|
-      type: 'p',
-      ref: ref,
-    |}
-  | {|
-      type: 'g',
-      p: Point,
-    |}
-  | {|
-      type: 'pp',
-      ref1: ref,
-      ref2: ref,
-    |}
-  | {|
-      type: 'pg',
-      ref: ref,
-      p: Point,
-    |}
-  | {|
-      type: 'gp',
-      ref: ref,
-      p: Point,
-    |}
-  | {|
-      type: 'gg',
-      p1: Point,
-      p2: Point,
-    |}
-  | {|
-      type: 'ppg',
-      ref1: ref,
-      ref2: ref,
-      p: Point,
-    |}
-  | {|
-      type: 'pgp',
-      ref1: ref,
-      ref2: ref,
-      p: Point,
-    |}
-  | {|
-      type: 'gpp',
-      ref1: ref,
-      ref2: ref,
-      p: Point,
-    |}
-  | {|
-      type: 'pgg',
-      ref: ref,
-      p1: Point,
-      p2: Point,
-    |}
-  | {|
-      type: 'gpg',
-      ref: ref,
-      p1: Point,
-      p2: Point,
-    |}
-  | {|
-      type: 'ggp',
-      ref: ref,
-      p1: Point,
-      p2: Point,
-    |};
+  | {|type: 'optimize', ref: ref, path: Array<Point>|}
+  | {|type: 'optimizing', ref: ref, path: Array<Point>|}
+  | {|type: 'p', ref: ref|}
+  | {|type: 'g', p: Point|}
+  | {|type: 'pp', ref1: ref, ref2: ref|}
+  | {|type: 'pg', ref: ref, p: Point|}
+  | {|type: 'gp', ref: ref, p: Point|}
+  | {|type: 'gg', p1: Point, p2: Point|}
+  | {|type: 'ppg', ref1: ref, ref2: ref, p: Point|}
+  | {|type: 'pgp', ref1: ref, ref2: ref, p: Point|}
+  | {|type: 'gpp', ref1: ref, ref2: ref, p: Point|}
+  | {|type: 'pgg', ref: ref, p1: Point, p2: Point|}
+  | {|type: 'gpg', ref: ref, p1: Point, p2: Point|}
+  | {|type: 'ggp', ref: ref, p1: Point, p2: Point|};
 
 type MouseState = {|
   pointRef: ?ref,
@@ -176,12 +126,19 @@ function reduceMouseUIState(
         p: mousePoint,
       };
 
+    case 'optimize':
+      return uiState;
+
     default:
       return {type: 'none'};
   }
 }
 
-function reduceMouseUserState(uiState, theta, linkage) {
+function reduceMouseUserState(
+  uiState: UIState,
+  theta: number,
+  linkage: TLinkage,
+): UIState {
   switch (uiState.type) {
     case 'ggp':
     case 'gpg': {
@@ -202,6 +159,11 @@ function reduceMouseUserState(uiState, theta, linkage) {
       const {p, ref1, ref2} = uiState;
       Linkage.addCoupler(linkage, theta, p, ref1, ref2);
       return {type: 'none'};
+    }
+
+    case 'optimize': {
+      Linkage.optimize(linkage, uiState.ref, uiState.path);
+      return {type: 'optimizing', path: uiState.path, ref: uiState.ref};
     }
 
     default:
@@ -251,13 +213,20 @@ function draw(
     }
   }
 
+  if (
+    (uiState.type === 'optimize' || uiState.type === 'optimizing') &&
+    uiState.path.length
+  ) {
+    Drawing.drawLines(drawing, uiState.path);
+  }
+
   if (mousePoint) {
     Drawing.drawCircle(drawing, mousePoint[0], mousePoint[1], CLICK_THRESHOLD);
   }
 }
 
 function onMouseDown(
-  t: TDrawing,
+  drawing: TDrawing,
   time: number,
   mousePoint: Point,
   userState: TUserState,
@@ -274,15 +243,21 @@ function onMouseDown(
     start: [...mousePoint],
     movedWhileDown: false,
   };
+  if (userState.uiState.type === 'optimize') {
+    userState.uiState.path.push(mousePoint);
+  }
 }
 
 function onMouseMove(
-  t: TDrawing,
+  drawing: TDrawing,
   time: number,
   mousePoint: Point,
-  {linkage, mouseState}: TUserState,
+  {linkage, uiState, mouseState}: TUserState,
 ) {
   if (!mouseState || !mouseState.pointRef) {
+    if (uiState.type === 'optimize' && uiState.path.length) {
+      uiState.path.push(mousePoint);
+    }
     return;
   }
   const mouseRef = mouseState.pointRef;
@@ -298,7 +273,7 @@ function onMouseMove(
 }
 
 function onMouseUp(
-  t: TDrawing,
+  drawing: TDrawing,
   time: number,
   mousePoint: Point,
   userState: TUserState,
@@ -323,7 +298,7 @@ function onMouseUp(
 }
 
 function onKeyDown(
-  t: TDrawing,
+  drawing: TDrawing,
   time: number,
   key: string,
   userState: TUserState,
@@ -331,6 +306,7 @@ function onKeyDown(
   switch (key) {
     case 'Escape':
       userState.uiState = {type: 'none'};
+      Linkage.stopOptimizing(userState.linkage);
       break;
 
     case 't':
@@ -343,6 +319,15 @@ function onKeyDown(
         userState.uiState = {type: 'none'};
       }
       break;
+
+    case 'o':
+      if (userState.traceState.ref && userState.uiState.type === 'none') {
+        userState.uiState = {
+          type: 'optimize',
+          path: [],
+          ref: userState.traceState.ref,
+        };
+      }
   }
 }
 
