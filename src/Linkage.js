@@ -241,6 +241,18 @@ function addCoupler(
   t.refCount += 1;
 }
 
+function calcPath(t: t, ref: ref, n: number): Array<Point> {
+  const path = [];
+  for (let i = 0; i < n; i++) {
+    const theta = (i * Math.PI * 2) / (n - 1);
+    const data = calc(t, theta);
+    if (data) {
+      path.push(data.points[ref]);
+    }
+  }
+  return path;
+}
+
 function parseRef(ref: string): {kind: string, num: number} {
   const match = ref.match(/([p])([0-9]+)/);
   if (!match) {
@@ -283,4 +295,5 @@ module.exports = {
   movePoint,
   addJoint,
   addCoupler,
+  calcPath,
 };

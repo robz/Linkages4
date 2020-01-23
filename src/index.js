@@ -87,6 +87,9 @@ type TUserState = {
   linkage: TLinkage,
   mouseState: ?MouseState,
   uiState: UIState,
+  traceState: {
+    ref: ?ref,
+  },
 };
 
 function getLinesForUIState(
@@ -212,7 +215,7 @@ function draw(
   drawing: TDrawing,
   time: number,
   mousePoint: ?Point,
-  {linkage, uiState}: TUserState,
+  {linkage, uiState, traceState}: TUserState,
 ) {
   Drawing.clearCanvas(drawing);
   Drawing.drawAxis(drawing);
@@ -223,6 +226,11 @@ function draw(
     const {points, lines} = data;
     for (const line of lines) {
       Drawing.drawLines(drawing, line);
+    }
+
+    if (traceState.ref) {
+      const points = Linkage.calcPath(linkage, traceState.ref, 100);
+      Drawing.drawLines(drawing, points);
     }
 
     if (mousePoint) {
@@ -283,10 +291,10 @@ function onMouseMove(
     return;
   }
 
-  mouseState.movedWhileDown = true;
-
   const theta = time * 0.005;
   Linkage.movePoint(linkage, theta, mouseRef, mousePoint);
+
+  mouseState.movedWhileDown = true;
 }
 
 function onMouseUp(
@@ -323,6 +331,17 @@ function onKeyDown(
   switch (key) {
     case 'Escape':
       userState.uiState = {type: 'none'};
+      break;
+
+    case 't':
+      if (userState.uiState.type === 'p') {
+        if (userState.traceState.ref === userState.uiState.ref) {
+          userState.traceState.ref = null;
+        } else {
+          userState.traceState.ref = userState.uiState.ref;
+        }
+        userState.uiState = {type: 'none'};
+      }
       break;
   }
 }
@@ -362,5 +381,6 @@ Drawing.start(
     linkage,
     mouseState: null,
     uiState: {type: 'none'},
+    traceState: {ref: null},
   },
 );
