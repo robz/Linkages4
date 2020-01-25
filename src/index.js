@@ -12,8 +12,6 @@ declare var window: TWindow;
 
 type UIState =
   | {|type: 'none'|}
-  | {|type: 'optimize', ref: ref, path: Array<Point>|}
-  | {|type: 'optimizing', ref: ref, path: Array<Point>|}
   | {|type: 'p', ref: ref|}
   | {|type: 'g', p: Point|}
   | {|type: 'pp', ref1: ref, ref2: ref|}
@@ -33,13 +31,23 @@ type MouseState = {|
   movedWhileDown: boolean,
 |};
 
+type OptimizeState =
+  | {|
+      type: 'waiting_to_draw',
+      ref: ref,
+    |}
+  | {|
+      type: 'drawing' | 'optimizing',
+      ref: ref,
+      path: Array<Point>,
+    |};
+
 type TUserState = {
   linkage: TLinkage,
   mouseState: ?MouseState,
   uiState: UIState,
-  traceState: {
-    ref: ?ref,
-  },
+  traceState: {ref: ?ref},
+  optimizeState: ?OptimizeState,
 };
 
 function getLinesForUIState(
@@ -126,9 +134,6 @@ function reduceMouseUIState(
         p: mousePoint,
       };
 
-    case 'optimize':
-      return uiState;
-
     default:
       return {type: 'none'};
   }
@@ -161,11 +166,6 @@ function reduceMouseUserState(
       return {type: 'none'};
     }
 
-    case 'optimize': {
-      Linkage.optimize(linkage, uiState.ref, uiState.path);
-      return {type: 'optimizing', path: uiState.path, ref: uiState.ref};
-    }
-
     default:
       return uiState;
   }
@@ -177,7 +177,7 @@ function draw(
   drawing: TDrawing,
   time: number,
   mousePoint: ?Point,
-  {linkage, uiState, traceState}: TUserState,
+  {linkage, uiState, traceState, optimizeState}: TUserState,
 ) {
   Drawing.clearCanvas(drawing);
   Drawing.drawAxis(drawing);
@@ -214,10 +214,11 @@ function draw(
   }
 
   if (
-    (uiState.type === 'optimize' || uiState.type === 'optimizing') &&
-    uiState.path.length
+    (optimizeState?.type === 'drawing' ||
+      optimizeState?.type === 'optimizing') &&
+    optimizeState.path.length
   ) {
-    Drawing.drawLines(drawing, uiState.path);
+    Drawing.drawLines(drawing, optimizeState.path);
   }
 
   if (mousePoint) {
@@ -243,8 +244,12 @@ function onMouseDown(
     start: [...mousePoint],
     movedWhileDown: false,
   };
-  if (userState.uiState.type === 'optimize') {
-    userState.uiState.path.push(mousePoint);
+  if (userState.optimizeState?.type === 'waiting_to_draw') {
+    userState.optimizeState = {
+      type: 'drawing',
+      path: [mousePoint],
+      ref: userState.optimizeState.ref,
+    };
   }
 }
 
@@ -252,11 +257,11 @@ function onMouseMove(
   drawing: TDrawing,
   time: number,
   mousePoint: Point,
-  {linkage, uiState, mouseState}: TUserState,
+  {linkage, uiState, mouseState, optimizeState}: TUserState,
 ) {
   if (!mouseState || !mouseState.pointRef) {
-    if (uiState.type === 'optimize' && uiState.path.length) {
-      uiState.path.push(mousePoint);
+    if (optimizeState?.type === 'drawing') {
+      optimizeState.path.push(mousePoint);
     }
     return;
   }
@@ -278,12 +283,15 @@ function onMouseUp(
   mousePoint: Point,
   userState: TUserState,
 ) {
-  const {mouseState, uiState, linkage} = userState;
+  const {mouseState, uiState, linkage, optimizeState} = userState;
   if (!mouseState) {
     return;
   }
 
-  if (!mouseState.movedWhileDown) {
+  if (optimizeState?.type === 'drawing') {
+    Linkage.optimize(linkage, optimizeState.ref, optimizeState.path);
+    optimizeState.type = 'optimizing';
+  } else if (!mouseState.movedWhileDown) {
     const theta = time * 0.005;
     let newUIState = reduceMouseUIState(uiState, mouseState, mousePoint);
     newUIState = reduceMouseUserState(newUIState, theta, linkage);
@@ -322,12 +330,20 @@ function onKeyDown(
 
     case 'o':
       if (userState.traceState.ref && userState.uiState.type === 'none') {
-        userState.uiState = {
-          type: 'optimize',
-          path: [],
+        userState.optimizeState = {
+          type: 'waiting_to_draw',
           ref: userState.traceState.ref,
         };
       }
+      break;
+
+    case '+':
+      Linkage.scaleAlpha(linkage, 1.01);
+      break;
+
+    case '-':
+      Linkage.scaleAlpha(linkage, 0.99);
+      break;
   }
 }
 
@@ -367,5 +383,6 @@ Drawing.start(
     mouseState: null,
     uiState: {type: 'none'},
     traceState: {ref: null},
+    optimizeState: null,
   },
 );

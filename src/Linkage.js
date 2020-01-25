@@ -11,7 +11,12 @@ type Spec = {|
   rotaries: Array<{len: number, p1: ref, p2: ref, phase: number}>,
   hinges: Array<{len1: number, len2: number, p1: ref, p2: ref, p3: ref}>,
 |};
-export opaque type t = {|refCount: number, optimizing: boolean, ...Spec|};
+export opaque type t = {|
+  refCount: number,
+  optimizing: boolean,
+  alpha: number,
+  ...Spec,
+|};
 
 function calcHinge(
   [x1, y1]: Point,
@@ -264,26 +269,54 @@ function calcError(path1: Array<Point>, path2: Array<Point>): number {
 function optimize(t: t, ref: ref, path: Array<Point>): void {
   t.optimizing = true;
 
-  let prevError = calcError(path, calcPath(t, ref, path.length));
   function tweak() {
+    const prevPath = calcPath(t, ref, path.length);
+    if (prevPath.length !== path.length) {
+      setTimeout(tweak, 10);
+      return;
+    }
+    const prevError = calcError(path, prevPath);
+    const {alpha} = t;
     const prevGrounds = {};
     for (const ref of Object.keys(t.grounds)) {
       prevGrounds[ref] = [...t.grounds[ref]];
-      t.grounds[ref][0] += Math.random() * 0.01;
-      t.grounds[ref][1] += Math.random() * 0.01;
+      t.grounds[ref][0] += (Math.random() - 0.5) * alpha;
+      t.grounds[ref][1] += (Math.random() - 0.5) * alpha;
     }
 
-    const error = calcError(path, calcPath(t, ref, path.length));
-    if (error > prevError) {
-      t.grounds = prevGrounds;
-    } else {
-      prevError = error;
+    const prevRotaries = [];
+    for (const rotary of t.rotaries) {
+      prevRotaries.push({...rotary, len: rotary.len, phase: rotary.phase});
+      rotary.len += (Math.random() - 0.5) * alpha;
+      rotary.phase += (Math.random() - 0.5) * 10 * alpha;
     }
+
+    const prevHinges = [];
+    for (const hinge of t.hinges) {
+      prevHinges.push({...hinge, len1: hinge.len1, len2: hinge.len2});
+      hinge.len1 += (Math.random() - 0.5) * alpha;
+      hinge.len2 += (Math.random() - 0.5) * alpha;
+    }
+
+    const currentPath = calcPath(t, ref, path.length);
+    if (currentPath.length !== path.length) {
+      t.grounds = prevGrounds;
+      t.rotaries = prevRotaries;
+      t.hinges = prevHinges;
+    } else {
+      const error = calcError(path, currentPath);
+      if (error > prevError) {
+        t.grounds = prevGrounds;
+        t.rotaries = prevRotaries;
+        t.hinges = prevHinges;
+      }
+    }
+
     if (t.optimizing) {
-      setTimeout(tweak, 10);
+      setTimeout(tweak, 5);
     }
   }
-  setTimeout(tweak, 10);
+  setTimeout(tweak, 5);
 }
 
 function stopOptimizing(t: t) {
@@ -296,6 +329,11 @@ function parseRef(ref: string): {kind: string, num: number} {
     throw new Error('invalid ref ' + ref);
   }
   return {kind: match[1], num: Number(match[2])};
+}
+
+function scaleAlpha(t: t, scale: number): void {
+  t.alpha *= scale;
+  console.log(t.alpha);
 }
 
 function make(spec: Spec): t {
@@ -322,7 +360,7 @@ function make(spec: Spec): t {
     );
   }
 
-  return {...spec, refCount, optimzing: false};
+  return {...spec, refCount, optimzing: false, alpha: 0.03};
 }
 
 module.exports = {
@@ -335,4 +373,5 @@ module.exports = {
   calcPath,
   optimize,
   stopOptimizing,
+  scaleAlpha,
 };
