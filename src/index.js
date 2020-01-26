@@ -1,60 +1,58 @@
 /* @flow */
 
-import type {Point, TWindow, t as TDrawing} from './Drawing';
-import type {t as TLinkage, ref} from './Linkage';
+import type {T as TDrawing, TWindow} from './Drawing';
+import type {T as TLinkage, Ref} from './Linkage';
+import type {T as TPoint} from './Point';
 
 const Drawing = require('./Drawing');
 const Linkage = require('./Linkage');
 
-const euclid = require('./euclid');
+const {euclid} = require('./Point');
 
 declare var window: TWindow;
 
-type UIState =
+type _UIState =
   | {|type: 'none'|}
-  | {|type: 'p', ref: ref|}
-  | {|type: 'g', p: Point|}
-  | {|type: 'pp', ref1: ref, ref2: ref|}
-  | {|type: 'pg', ref: ref, p: Point|}
-  | {|type: 'gp', ref: ref, p: Point|}
-  | {|type: 'gg', p1: Point, p2: Point|}
-  | {|type: 'ppg', ref1: ref, ref2: ref, p: Point|}
-  | {|type: 'pgp', ref1: ref, ref2: ref, p: Point|}
-  | {|type: 'gpp', ref1: ref, ref2: ref, p: Point|}
-  | {|type: 'pgg', ref: ref, p1: Point, p2: Point|}
-  | {|type: 'gpg', ref: ref, p1: Point, p2: Point|}
-  | {|type: 'ggp', ref: ref, p1: Point, p2: Point|};
+  | {|type: 'p', ref: Ref|}
+  | {|type: 'g', p: TPoint|}
+  | {|type: 'pp', ref1: Ref, ref2: Ref|}
+  | {|type: 'gg', p1: TPoint, p2: TPoint|}
+  | {|type: 'pg' | 'gp', ref: Ref, p: TPoint|}
+  | {|type: 'ppg' | 'pgp' | 'gpp', ref1: Ref, ref2: Ref, p: TPoint|}
+  | {|type: 'pgg' | 'gpg' | 'ggp', ref: Ref, p1: TPoint, p2: TPoint|};
+type UIState = $ReadOnly<_UIState>;
 
-type MouseState = {|
-  pointRef: ?ref,
-  start: Point,
+type MouseState = $ReadOnly<{|
+  pointRef: ?Ref,
+  start: TPoint,
   movedWhileDown: boolean,
-|};
+|}>;
 
-type OptimizeState =
+type _OptimizeState =
   | {|
       type: 'waiting_to_draw',
-      ref: ref,
+      ref: Ref,
     |}
   | {|
       type: 'drawing' | 'optimizing',
-      ref: ref,
-      path: Array<Point>,
+      ref: Ref,
+      path: Array<TPoint>,
     |};
+type OptimizeState = $ReadOnly<_OptimizeState>;
 
 type TUserState = {
   linkage: TLinkage,
   mouseState: ?MouseState,
   uiState: UIState,
-  traceState: {ref: ?ref},
+  traceState: {ref: ?Ref},
   optimizeState: ?OptimizeState,
 };
 
 function getLinesForUIState(
   uiState: UIState,
-  mousePoint: Point,
-  points: {[ref]: Point},
-): ?Array<Point> {
+  mousePoint: TPoint,
+  points: {+[Ref]: TPoint},
+): ?Array<TPoint> {
   switch (uiState.type) {
     case 'p':
       return [points[uiState.ref], mousePoint];
@@ -82,7 +80,7 @@ function getLinesForUIState(
 function reduceMouseUIState(
   uiState: UIState,
   mouseState: MouseState,
-  mousePoint: Point,
+  mousePoint: TPoint,
 ): UIState {
   const ref = mouseState.pointRef;
   if (ref) {
@@ -176,9 +174,9 @@ const CLICK_THRESHOLD = 0.05;
 function draw(
   drawing: TDrawing,
   time: number,
-  mousePoint: ?Point,
+  mousePoint: ?TPoint,
   {linkage, uiState, traceState, optimizeState}: TUserState,
-) {
+): void {
   Drawing.clearCanvas(drawing);
   Drawing.drawAxis(drawing);
 
@@ -227,11 +225,10 @@ function draw(
 }
 
 function onMouseDown(
-  drawing: TDrawing,
   time: number,
-  mousePoint: Point,
+  mousePoint: TPoint,
   userState: TUserState,
-) {
+): void {
   const theta = time * 0.005;
   const point = Linkage.getPoint(
     userState.linkage,
@@ -254,11 +251,11 @@ function onMouseDown(
 }
 
 function onMouseMove(
-  drawing: TDrawing,
   time: number,
-  mousePoint: Point,
-  {linkage, uiState, mouseState, optimizeState}: TUserState,
-) {
+  mousePoint: TPoint,
+  userState: TUserState,
+): void {
+  const {linkage, mouseState, optimizeState} = userState;
   if (!mouseState || !mouseState.pointRef) {
     if (optimizeState?.type === 'drawing') {
       optimizeState.path.push(mousePoint);
@@ -274,15 +271,14 @@ function onMouseMove(
   const theta = time * 0.005;
   Linkage.movePoint(linkage, theta, mouseRef, mousePoint);
 
-  mouseState.movedWhileDown = true;
+  userState.mouseState = {...mouseState, movedWhileDown: true};
 }
 
 function onMouseUp(
-  drawing: TDrawing,
   time: number,
-  mousePoint: Point,
+  mousePoint: TPoint,
   userState: TUserState,
-) {
+): void {
   const {mouseState, uiState, linkage, optimizeState} = userState;
   if (!mouseState) {
     return;
@@ -290,7 +286,7 @@ function onMouseUp(
 
   if (optimizeState?.type === 'drawing') {
     Linkage.optimize(linkage, optimizeState.ref, optimizeState.path);
-    optimizeState.type = 'optimizing';
+    userState.optimizeState = {...optimizeState, type: 'optimizing'};
   } else if (!mouseState.movedWhileDown) {
     const theta = time * 0.005;
     let newUIState = reduceMouseUIState(uiState, mouseState, mousePoint);
@@ -305,12 +301,7 @@ function onMouseUp(
   userState.mouseState = null;
 }
 
-function onKeyDown(
-  drawing: TDrawing,
-  time: number,
-  key: string,
-  userState: TUserState,
-) {
+function onKeyDown(time: number, key: string, userState: TUserState): void {
   switch (key) {
     case 'Escape':
       userState.uiState = {type: 'none'};

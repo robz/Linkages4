@@ -1,33 +1,34 @@
 /* @flow */
 
-export type TWindow = {|
+import type {T as TPoint} from './Point';
+
+export type TWindow = $ReadOnly<{|
   requestAnimationFrame: ((number) => void) => number,
   addEventListener: ('resize', () => void) => void,
   innerWidth: number,
   innerHeight: number,
-|};
-declare var window: TWindow;
+|}>;
 
-export type Point = [number, number];
+declare var window: TWindow;
 
 type Container = TWindow | HTMLElement;
 
-export opaque type t = {
+export opaque type T = $ReadOnly<{|
   canvas: HTMLCanvasElement,
   ctx: CanvasRenderingContext2D,
   container: Container,
-};
+|}>;
 
-type TDrawingState = {
+type TDrawingState = {|
   isPaused: boolean,
   startTime: number,
   offsetTime: number,
-  mouse: ?Point,
-};
+  mouse: ?TPoint,
+|};
 
 const SHOW_FPS = false;
 
-function drawLines(t: t, points: Array<Point>) {
+function drawLines(t: T, points: Array<TPoint>): void {
   const {ctx} = t;
   ctx.beginPath();
   ctx.moveTo(points[0][0], points[0][1]);
@@ -37,23 +38,23 @@ function drawLines(t: t, points: Array<Point>) {
   ctx.stroke();
 }
 
-function drawLine(t, x1, y1, x2, y2) {
+function drawLine(t: T, x1: number, y1: number, x2: number, y2: number): void {
   drawLines(t, [[x1, y1], [x2, y2]]);
 }
 
-function drawAxis(t: t) {
+function drawAxis(t: T): void {
   drawLine(t, -0.9, 0, 0.9, 0);
   drawLine(t, 0, -0.9, 0, 0.9);
 }
 
-function drawCircle(t: t, x: number, y: number, r: number) {
+function drawCircle(t: T, x: number, y: number, r: number): void {
   const {ctx} = t;
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2, true);
   ctx.stroke();
 }
 
-function scaleCanvas(t: t) {
+function scaleCanvas(t: T): void {
   const {canvas, ctx, container} = t;
 
   canvas.width =
@@ -77,14 +78,14 @@ function scaleCanvas(t: t) {
   }
 }
 
-function clearCanvas(t: t) {
+function clearCanvas(t: T) {
   const {canvas, ctx} = t;
   const scale = Math.min(canvas.width, canvas.height);
   ctx.fillStyle = 'white';
   ctx.fillRect(-canvas.width / scale, -canvas.height / scale, scale, scale);
 }
 
-function getPoint(t, canvasX, canvasY) {
+function getPoint(t: T, canvasX: number, canvasY: number): TPoint {
   const {canvas} = t;
   const scale = Math.min(canvas.width, canvas.height);
   let x = (canvasX / scale) * 2 - 1;
@@ -97,15 +98,23 @@ function getPoint(t, canvasX, canvasY) {
   return [x, y];
 }
 
+function getMousePoint(t: T, e: MouseEvent): TPoint {
+  return getPoint(
+    t,
+    e.clientX - t.canvas.offsetLeft,
+    e.clientY - t.canvas.offsetTop,
+  );
+}
+
 function start<TUserState>(
-  t: t,
-  draw: (t, number, ?Point, TUserState) => void,
-  onMouseDown: (t, number, Point, TUserState) => void,
-  onMouseMove: (t, number, Point, TUserState) => void,
-  onMouseUp: (t, number, Point, TUserState) => void,
-  onKeyDown: (t, number, string, TUserState) => void,
+  t: T,
+  draw: (T, number, ?TPoint, TUserState) => void,
+  onMouseDown: (number, TPoint, TUserState) => void,
+  onMouseMove: (number, TPoint, TUserState) => void,
+  onMouseUp: (number, TPoint, TUserState) => void,
+  onKeyDown: (number, string, TUserState) => void,
   userState: TUserState,
-) {
+): void {
   const state: TDrawingState = {
     isPaused: false,
     startTime: new Date().getTime(),
@@ -155,41 +164,29 @@ function start<TUserState>(
         state.offsetTime += time - state.startTime;
       }
     }
-    onKeyDown(t, state.offsetTime, e.key, userState);
+    onKeyDown(state.offsetTime, e.key, userState);
   });
 
   t.canvas.addEventListener('mousemove', (e: MouseEvent) => {
-    state.mouse = getPoint(
-      t,
-      e.clientX - t.canvas.offsetLeft,
-      e.clientY - t.canvas.offsetTop,
-    );
-    onMouseMove(t, state.offsetTime, state.mouse, userState);
+    state.mouse = getMousePoint(t, e);
+    onMouseMove(state.offsetTime, state.mouse, userState);
   });
 
   t.canvas.addEventListener('mousedown', (e: MouseEvent) => {
-    state.mouse = getPoint(
-      t,
-      e.clientX - t.canvas.offsetLeft,
-      e.clientY - t.canvas.offsetTop,
-    );
-    onMouseDown(t, state.offsetTime, state.mouse, userState);
+    state.mouse = getMousePoint(t, e);
+    onMouseDown(state.offsetTime, state.mouse, userState);
   });
 
   t.canvas.addEventListener('mouseup', (e: MouseEvent) => {
-    state.mouse = getPoint(
-      t,
-      e.clientX - t.canvas.offsetLeft,
-      e.clientY - t.canvas.offsetTop,
-    );
-    onMouseUp(t, state.offsetTime, state.mouse, userState);
+    state.mouse = getMousePoint(t, e);
+    onMouseUp(state.offsetTime, state.mouse, userState);
   });
 
   scaleCanvas(t);
   window.requestAnimationFrame(animate);
 }
 
-function make(canvasID: string, container: Container): t {
+function make(canvasID: string, container: Container): T {
   const canvas = document.getElementById(canvasID);
   if (!(canvas instanceof HTMLCanvasElement)) {
     throw new Error(canvasID + ' is not a canvas');

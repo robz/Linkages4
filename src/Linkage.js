@@ -1,21 +1,31 @@
 /* @flow */
 
-import type {Point} from './euclid';
+import type {T as Point} from './Point';
 
-const euclid = require('./euclid');
+const {euclid, euclidPath} = require('./Point');
 
-export type ref = string;
+export opaque type Ref = string;
 
-type Spec = {|
-  grounds: {[ref]: Point},
-  rotaries: Array<{len: number, p1: ref, p2: ref, phase: number}>,
-  hinges: Array<{len1: number, len2: number, p1: ref, p2: ref, p3: ref}>,
-|};
-export opaque type t = {|
+type Spec = $ReadOnly<{|
+  grounds: {[string]: Point},
+  rotaries: Array<{len: number, p1: string, p2: string, phase: number}>,
+  hinges: Array<{
+    len1: number,
+    len2: number,
+    p1: string,
+    p2: string,
+    p3: string,
+  }>,
+|}>;
+export opaque type T = {|
   refCount: number,
   optimizing: boolean,
   alpha: number,
-  ...Spec,
+
+  /* Spec */
+  grounds: {[Ref]: Point},
+  rotaries: Array<{len: number, p1: Ref, p2: Ref, phase: number}>,
+  hinges: Array<{len1: number, len2: number, p1: Ref, p2: Ref, p3: Ref}>,
 |};
 
 function calcHinge(
@@ -51,9 +61,9 @@ function calcRotary(
 }
 
 function calc(
-  {grounds, rotaries, hinges}: t,
+  {grounds, rotaries, hinges}: T,
   theta: number,
-): ?{points: {[ref]: Point}, lines: Array<Array<Point>>} {
+): ?{points: {[Ref]: Point}, lines: Array<Array<Point>>} {
   const points = {...grounds};
   const lines = [];
 
@@ -85,11 +95,11 @@ function calc(
 }
 
 function getPoint(
-  t: t,
+  t: T,
   theta: number,
   p0: Point,
   threshold: number,
-): ?{ref: ref, point: Point} {
+): ?{ref: Ref, point: Point} {
   const data = calc(t, theta);
   if (!data) {
     return null;
@@ -112,7 +122,7 @@ function nullthrows<T>(x: ?T): T {
   return x;
 }
 
-function movePoint(t: t, theta: number, ref: ref, p: Point): void {
+function movePoint(t: T, theta: number, ref: Ref, p: Point): void {
   if (t.grounds[ref]) {
     t.grounds[ref] = [...p];
     return;
@@ -132,8 +142,8 @@ function movePoint(t: t, theta: number, ref: ref, p: Point): void {
   }
 
   const hingePoints: Array<{|
-    pointRef: string,
-    lenRef: string,
+    pointRef: Ref,
+    lenRef: Ref,
     index: number,
   |}> = [];
   t.hinges.forEach((hinge, index) => {
@@ -173,7 +183,7 @@ function movePoint(t: t, theta: number, ref: ref, p: Point): void {
   }
 }
 
-function addJoint(t: t, theta: number, p1: Point, p3: Point, ref: ref): void {
+function addJoint(t: T, theta: number, p1: Point, p3: Point, ref: Ref): void {
   const p1Ref = `p${t.refCount + 1}`;
   const p3Ref = `p${t.refCount + 2}`;
 
@@ -209,11 +219,11 @@ function addJoint(t: t, theta: number, p1: Point, p3: Point, ref: ref): void {
 }
 
 function addCoupler(
-  t: t,
+  t: T,
   theta: number,
   p3: Point,
-  ref1: ref,
-  ref2: ref,
+  ref1: Ref,
+  ref2: Ref,
 ): void {
   const p3Ref = `p${t.refCount + 1}`;
 
@@ -246,7 +256,7 @@ function addCoupler(
   t.refCount += 1;
 }
 
-function calcPath(t: t, ref: ref, n: number): Array<Point> {
+function calcPath(t: T, ref: Ref, n: number): Array<Point> {
   const path = [];
   for (let i = 0; i < n; i++) {
     const theta = (i * Math.PI * 2) / (n - 1);
@@ -258,15 +268,7 @@ function calcPath(t: t, ref: ref, n: number): Array<Point> {
   return path;
 }
 
-function calcError(path1: Array<Point>, path2: Array<Point>): number {
-  let error = 0;
-  for (let i = 0; i < path1.length; i++) {
-    error += euclid(path1[i], path2[i]);
-  }
-  return error;
-}
-
-function optimize(t: t, ref: ref, path: Array<Point>): void {
+function optimize(t: T, ref: Ref, path: Array<Point>): void {
   t.optimizing = true;
 
   function tweak() {
@@ -275,7 +277,7 @@ function optimize(t: t, ref: ref, path: Array<Point>): void {
       setTimeout(tweak, 10);
       return;
     }
-    const prevError = calcError(path, prevPath);
+    const prevError = euclidPath(path, prevPath);
     const {alpha} = t;
     const prevGrounds = {};
     for (const ref of Object.keys(t.grounds)) {
@@ -304,7 +306,7 @@ function optimize(t: t, ref: ref, path: Array<Point>): void {
       t.rotaries = prevRotaries;
       t.hinges = prevHinges;
     } else {
-      const error = calcError(path, currentPath);
+      const error = euclidPath(path, currentPath);
       if (error > prevError) {
         t.grounds = prevGrounds;
         t.rotaries = prevRotaries;
@@ -319,11 +321,11 @@ function optimize(t: t, ref: ref, path: Array<Point>): void {
   setTimeout(tweak, 5);
 }
 
-function stopOptimizing(t: t) {
+function stopOptimizing(t: T) {
   t.optimizing = false;
 }
 
-function parseRef(ref: string): {kind: string, num: number} {
+function parseRef(ref: Ref): {|kind: string, num: number|} {
   const match = ref.match(/([p])([0-9]+)/);
   if (!match) {
     throw new Error('invalid ref ' + ref);
@@ -331,12 +333,12 @@ function parseRef(ref: string): {kind: string, num: number} {
   return {kind: match[1], num: Number(match[2])};
 }
 
-function scaleAlpha(t: t, scale: number): void {
+function scaleAlpha(t: T, scale: number): void {
   t.alpha *= scale;
   console.log(t.alpha);
 }
 
-function make(spec: Spec): t {
+function make(spec: Spec): T {
   let refCount = 0;
 
   for (const ref of Object.keys(spec.grounds)) {
@@ -360,7 +362,7 @@ function make(spec: Spec): t {
     );
   }
 
-  return {...spec, refCount, optimzing: false, alpha: 0.03};
+  return {...spec, refCount, optimizing: false, alpha: 0.03};
 }
 
 module.exports = {
