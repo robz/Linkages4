@@ -342,6 +342,7 @@ const linkage = Linkage.make({
   grounds: {
     p1: [0, 0],
     p4: [0.3, 0],
+    p5: [-0.3, 0],
   },
   rotaries: [
     {
@@ -358,6 +359,14 @@ const linkage = Linkage.make({
       p1: 'p2',
       p2: 'p4',
       p3: 'p3',
+    },
+  ],
+  sliders: [
+    {
+      len: 0.7,
+      p1: 'p2',
+      p2: 'p5',
+      p3: 'p6',
     },
   ],
 });

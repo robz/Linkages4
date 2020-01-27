@@ -8,14 +8,20 @@ export opaque type Ref = string;
 
 type Spec = $ReadOnly<{|
   grounds: {[string]: Point},
-  rotaries: Array<{len: number, p1: string, p2: string, phase: number}>,
-  hinges: Array<{
+  rotaries: Array<{|len: number, p1: string, p2: string, phase: number|}>,
+  hinges: Array<{|
     len1: number,
     len2: number,
     p1: string,
     p2: string,
     p3: string,
-  }>,
+  |}>,
+  sliders: Array<{|
+    p1: string,
+    p2: string,
+    p3: string,
+    len: number,
+  |}>,
 |}>;
 export opaque type T = {|
   refCount: number,
@@ -24,8 +30,9 @@ export opaque type T = {|
 
   /* Spec */
   grounds: {[Ref]: Point},
-  rotaries: Array<{len: number, p1: Ref, p2: Ref, phase: number}>,
-  hinges: Array<{len1: number, len2: number, p1: Ref, p2: Ref, p3: Ref}>,
+  rotaries: Array<{|len: number, p1: Ref, p2: Ref, phase: number|}>,
+  hinges: Array<{|len1: number, len2: number, p1: Ref, p2: Ref, p3: Ref|}>,
+  sliders: Array<{|p1: Ref, p2: Ref, p3: Ref, len: number|}>,
 |};
 
 function calcHinge(
@@ -60,8 +67,26 @@ function calcRotary(
   return [x1 + len * Math.cos(alpha), y1 + len * Math.sin(alpha)];
 }
 
+function calcSlider(
+  p1: Point,
+  p2: Point,
+  len: number,
+): ?Point {
+  const [x1, y1] = p1;
+  const [x2, y2] = p2;
+  const alpha = Math.atan2(y2 - y1, x2 - x1);
+  const p3 = [
+    x1 + len * Math.cos(alpha),
+    y1 + len * Math.sin(alpha),
+  ];
+  if (euclid(p3, p1) < euclid(p2, p1)) {
+    return null;
+  }
+  return p3;
+}
+
 function calc(
-  {grounds, rotaries, hinges}: T,
+  {grounds, rotaries, hinges, sliders}: T,
   theta: number,
 ): ?{points: {[Ref]: Point}, lines: Array<Array<Point>>} {
   const points = {...grounds};
@@ -89,6 +114,19 @@ function calc(
     }
     points[hinge.p3] = p3;
     lines.push([points[hinge.p1], p3, points[hinge.p2]]);
+  }
+
+  for (const slider of sliders) {
+    const p3 = calcSlider(
+      points[slider.p1],
+      points[slider.p2],
+      slider.len,
+    );
+    if (!p3) {
+      return null;
+    }
+    points[slider.p3] = p3;
+    lines.push([points[slider.p1], p3]);
   }
 
   return {points, lines};
