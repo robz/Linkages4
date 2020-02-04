@@ -2,16 +2,7 @@
 
 import type {T as TPoint} from './Point';
 
-export type TWindow = $ReadOnly<{|
-  requestAnimationFrame: ((number) => void) => number,
-  addEventListener: ('resize', () => void) => void,
-  innerWidth: number,
-  innerHeight: number,
-|}>;
-
-declare var window: TWindow;
-
-type Container = TWindow | HTMLElement;
+type Container = Window | HTMLElement;
 
 export opaque type T = $ReadOnly<{|
   canvas: HTMLCanvasElement,

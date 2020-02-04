@@ -1,6 +1,6 @@
 /* @flow */
 
-import type {T as TDrawing, TWindow} from './Drawing';
+import type {T as TDrawing} from './Drawing';
 import type {T as TLinkage, Ref} from './Linkage';
 import type {T as TPoint} from './Point';
 
@@ -9,9 +9,7 @@ const Linkage = require('./Linkage');
 
 const {euclid} = require('./Point');
 
-declare var window: TWindow;
-
-type _UIState =
+type _ClickState =
   | {|type: 'none'|}
   | {|type: 'p', ref: Ref|}
   | {|type: 'g', p: TPoint|}
@@ -20,7 +18,7 @@ type _UIState =
   | {|type: 'pg' | 'gp', ref: Ref, p: TPoint|}
   | {|type: 'ppg' | 'pgp' | 'gpp', ref1: Ref, ref2: Ref, p: TPoint|}
   | {|type: 'pgg' | 'gpg' | 'ggp', ref: Ref, p1: TPoint, p2: TPoint|};
-type UIState = $ReadOnly<_UIState>;
+type ClickState = $ReadOnly<_ClickState>;
 
 type MouseState = $ReadOnly<{|
   pointRef: ?Ref,
@@ -40,95 +38,105 @@ type _OptimizeState =
     |};
 type OptimizeState = $ReadOnly<_OptimizeState>;
 
-type TUserState = {
+type TAppState = {
   linkage: TLinkage,
   mouseState: ?MouseState,
-  uiState: UIState,
+  clickState: ClickState,
   traceState: {ref: ?Ref},
   optimizeState: ?OptimizeState,
 };
 
-function getLinesForUIState(
-  uiState: UIState,
+function getLinesForClickState(
+  clickState: ClickState,
   mousePoint: TPoint,
   points: {+[Ref]: TPoint},
 ): ?Array<TPoint> {
-  switch (uiState.type) {
+  switch (clickState.type) {
     case 'p':
-      return [points[uiState.ref], mousePoint];
+      return [points[clickState.ref], mousePoint];
 
     case 'g':
-      return [uiState.p, mousePoint];
+      return [clickState.p, mousePoint];
 
     case 'gp':
-      return [uiState.p, mousePoint, points[uiState.ref]];
+      return [clickState.p, mousePoint, points[clickState.ref]];
 
     case 'pg':
-      return [points[uiState.ref], uiState.p, mousePoint];
+      return [points[clickState.ref], clickState.p, mousePoint];
 
     case 'pp':
-      return [points[uiState.ref1], mousePoint, points[uiState.ref2]];
+      return [points[clickState.ref1], mousePoint, points[clickState.ref2]];
 
     case 'gg':
-      return [uiState.p1, uiState.p2, mousePoint];
+      return [clickState.p1, clickState.p2, mousePoint];
 
     default:
       return null;
   }
 }
 
-function reduceMouseUIState(
-  uiState: UIState,
+function reduceMouseClickState(
+  clickState: ClickState,
   mouseState: MouseState,
   mousePoint: TPoint,
-): UIState {
+): ClickState {
   const ref = mouseState.pointRef;
   if (ref) {
-    switch (uiState.type) {
+    switch (clickState.type) {
       case 'none':
         return {type: 'p', ref};
 
       case 'p':
-        return {type: 'pp', ref1: uiState.ref, ref2: ref};
+        return {type: 'pp', ref1: clickState.ref, ref2: ref};
 
       case 'g':
-        return {type: 'gp', ref, p: uiState.p};
+        return {type: 'gp', ref, p: clickState.p};
 
       case 'pg':
-        return {type: 'pgp', ref1: uiState.ref, ref2: ref, p: uiState.p};
+        return {type: 'pgp', ref1: clickState.ref, ref2: ref, p: clickState.p};
 
       case 'gg':
-        return {type: 'ggp', ref, p1: uiState.p1, p2: uiState.p2};
+        return {type: 'ggp', ref, p1: clickState.p1, p2: clickState.p2};
 
       case 'gp':
-        return {type: 'gpp', ref1: uiState.ref, ref2: ref, p: uiState.p};
+        return {type: 'gpp', ref1: clickState.ref, ref2: ref, p: clickState.p};
 
       default:
         return {type: 'none'};
     }
   }
 
-  switch (uiState.type) {
+  switch (clickState.type) {
     case 'none':
       return {type: 'g', p: mousePoint};
 
     case 'g':
-      return {type: 'gg', p1: uiState.p, p2: mousePoint};
+      return {type: 'gg', p1: clickState.p, p2: mousePoint};
 
     case 'p':
-      return {type: 'pg', ref: uiState.ref, p: mousePoint};
+      return {type: 'pg', ref: clickState.ref, p: mousePoint};
 
     case 'pg':
-      return {type: 'pgg', ref: uiState.ref, p1: uiState.p, p2: mousePoint};
+      return {
+        type: 'pgg',
+        ref: clickState.ref,
+        p1: clickState.p,
+        p2: mousePoint,
+      };
 
     case 'gp':
-      return {type: 'gpg', ref: uiState.ref, p1: uiState.p, p2: mousePoint};
+      return {
+        type: 'gpg',
+        ref: clickState.ref,
+        p1: clickState.p,
+        p2: mousePoint,
+      };
 
     case 'pp':
       return {
         type: 'ppg',
-        ref1: uiState.ref1,
-        ref2: uiState.ref2,
+        ref1: clickState.ref1,
+        ref2: clickState.ref2,
         p: mousePoint,
       };
 
@@ -138,20 +146,20 @@ function reduceMouseUIState(
 }
 
 function reduceMouseUserState(
-  uiState: UIState,
+  clickState: ClickState,
   theta: number,
   linkage: TLinkage,
-): UIState {
-  switch (uiState.type) {
+): ClickState {
+  switch (clickState.type) {
     case 'ggp':
     case 'gpg': {
-      const {p1, p2, ref} = uiState;
+      const {p1, p2, ref} = clickState;
       Linkage.addJoint(linkage, theta, p1, p2, ref);
       return {type: 'none'};
     }
 
     case 'pgg': {
-      const {p1, p2, ref} = uiState;
+      const {p1, p2, ref} = clickState;
       Linkage.addJoint(linkage, theta, p2, p1, ref);
       return {type: 'none'};
     }
@@ -159,13 +167,13 @@ function reduceMouseUserState(
     case 'gpp':
     case 'pgp':
     case 'ppg': {
-      const {p, ref1, ref2} = uiState;
+      const {p, ref1, ref2} = clickState;
       Linkage.addCoupler(linkage, theta, p, ref1, ref2);
       return {type: 'none'};
     }
 
     default:
-      return uiState;
+      return clickState;
   }
 }
 
@@ -175,7 +183,7 @@ function draw(
   drawing: TDrawing,
   time: number,
   mousePoint: ?TPoint,
-  {linkage, uiState, traceState, optimizeState}: TUserState,
+  {linkage, clickState, traceState, optimizeState}: TAppState,
 ): void {
   Drawing.clearCanvas(drawing);
   Drawing.drawAxis(drawing);
@@ -204,7 +212,7 @@ function draw(
         Drawing.drawCircle(drawing, point.point[0], point.point[1], 0.01);
       }
 
-      const lines = getLinesForUIState(uiState, mousePoint, points);
+      const lines = getLinesForClickState(clickState, mousePoint, points);
       if (lines) {
         Drawing.drawLines(drawing, lines);
       }
@@ -227,25 +235,25 @@ function draw(
 function onMouseDown(
   time: number,
   mousePoint: TPoint,
-  userState: TUserState,
+  appState: TAppState,
 ): void {
   const theta = time * 0.005;
   const point = Linkage.getPoint(
-    userState.linkage,
+    appState.linkage,
     theta,
     mousePoint,
     CLICK_THRESHOLD,
   );
-  userState.mouseState = {
+  appState.mouseState = {
     pointRef: point?.ref,
     start: [...mousePoint],
     movedWhileDown: false,
   };
-  if (userState.optimizeState?.type === 'waiting_to_draw') {
-    userState.optimizeState = {
+  if (appState.optimizeState?.type === 'waiting_to_draw') {
+    appState.optimizeState = {
       type: 'drawing',
       path: [mousePoint],
-      ref: userState.optimizeState.ref,
+      ref: appState.optimizeState.ref,
     };
   }
 }
@@ -253,9 +261,9 @@ function onMouseDown(
 function onMouseMove(
   time: number,
   mousePoint: TPoint,
-  userState: TUserState,
+  appState: TAppState,
 ): void {
-  const {linkage, mouseState, optimizeState} = userState;
+  const {linkage, mouseState, optimizeState} = appState;
   if (!mouseState || !mouseState.pointRef) {
     if (optimizeState?.type === 'drawing') {
       optimizeState.path.push(mousePoint);
@@ -271,59 +279,63 @@ function onMouseMove(
   const theta = time * 0.005;
   Linkage.movePoint(linkage, theta, mouseRef, mousePoint);
 
-  userState.mouseState = {...mouseState, movedWhileDown: true};
+  appState.mouseState = {...mouseState, movedWhileDown: true};
 }
 
 function onMouseUp(
   time: number,
   mousePoint: TPoint,
-  userState: TUserState,
+  appState: TAppState,
 ): void {
-  const {mouseState, uiState, linkage, optimizeState} = userState;
+  const {mouseState, clickState, linkage, optimizeState} = appState;
   if (!mouseState) {
     return;
   }
 
   if (optimizeState?.type === 'drawing') {
     Linkage.optimize(linkage, optimizeState.ref, optimizeState.path);
-    userState.optimizeState = {...optimizeState, type: 'optimizing'};
+    appState.optimizeState = {...optimizeState, type: 'optimizing'};
   } else if (!mouseState.movedWhileDown) {
     const theta = time * 0.005;
-    let newUIState = reduceMouseUIState(uiState, mouseState, mousePoint);
-    newUIState = reduceMouseUserState(newUIState, theta, linkage);
-    if (newUIState.type.length === 3) {
-      throw new Error(`uiState ${newUIState.type} not handled`);
+    let newClickState = reduceMouseClickState(
+      clickState,
+      mouseState,
+      mousePoint,
+    );
+    newClickState = reduceMouseUserState(newClickState, theta, linkage);
+    if (newClickState.type.length === 3) {
+      throw new Error(`clickState ${newClickState.type} not handled`);
     }
 
-    userState.uiState = newUIState;
+    appState.clickState = newClickState;
   }
 
-  userState.mouseState = null;
+  appState.mouseState = null;
 }
 
-function onKeyDown(time: number, key: string, userState: TUserState): void {
+function onKeyDown(time: number, key: string, appState: TAppState): void {
   switch (key) {
     case 'Escape':
-      userState.uiState = {type: 'none'};
-      Linkage.stopOptimizing(userState.linkage);
+      appState.clickState = {type: 'none'};
+      Linkage.stopOptimizing(appState.linkage);
       break;
 
     case 't':
-      if (userState.uiState.type === 'p') {
-        if (userState.traceState.ref === userState.uiState.ref) {
-          userState.traceState.ref = null;
+      if (appState.clickState.type === 'p') {
+        if (appState.traceState.ref === appState.clickState.ref) {
+          appState.traceState.ref = null;
         } else {
-          userState.traceState.ref = userState.uiState.ref;
+          appState.traceState.ref = appState.clickState.ref;
         }
-        userState.uiState = {type: 'none'};
+        appState.clickState = {type: 'none'};
       }
       break;
 
     case 'o':
-      if (userState.traceState.ref && userState.uiState.type === 'none') {
-        userState.optimizeState = {
+      if (appState.traceState.ref && appState.clickState.type === 'none') {
+        appState.optimizeState = {
           type: 'waiting_to_draw',
-          ref: userState.traceState.ref,
+          ref: appState.traceState.ref,
         };
       }
       break;
@@ -381,7 +393,7 @@ Drawing.start(
   {
     linkage,
     mouseState: null,
-    uiState: {type: 'none'},
+    clickState: {type: 'none'},
     traceState: {ref: null},
     optimizeState: null,
   },
