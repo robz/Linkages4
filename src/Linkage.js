@@ -6,7 +6,7 @@ const {euclid, euclidPath} = require('./Point');
 
 export opaque type Ref = string;
 
-type Spec = $ReadOnly<{|
+type Spec = $ReadOnly<{
   grounds: {[string]: Point},
   rotaries: Array<{|len: number, p1: string, p2: string, phase: number|}>,
   hinges: Array<{|
@@ -22,11 +22,12 @@ type Spec = $ReadOnly<{|
     p3: string,
     len: number,
   |}>,
-|}>;
-export opaque type T = {|
+}>;
+export type T = {|
   refCount: number,
   optimizing: boolean,
-  alpha: number,
+  optimizeStepSize: number,
+  onChange: T => mixed,
 
   /* Spec */
   grounds: {[Ref]: Point},
@@ -67,18 +68,11 @@ function calcRotary(
   return [x1 + len * Math.cos(alpha), y1 + len * Math.sin(alpha)];
 }
 
-function calcSlider(
-  p1: Point,
-  p2: Point,
-  len: number,
-): ?Point {
+function calcSlider(p1: Point, p2: Point, len: number): ?Point {
   const [x1, y1] = p1;
   const [x2, y2] = p2;
   const alpha = Math.atan2(y2 - y1, x2 - x1);
-  const p3 = [
-    x1 + len * Math.cos(alpha),
-    y1 + len * Math.sin(alpha),
-  ];
+  const p3 = [x1 + len * Math.cos(alpha), y1 + len * Math.sin(alpha)];
   if (euclid(p3, p1) < euclid(p2, p1)) {
     return null;
   }
@@ -117,11 +111,7 @@ function calc(
   }
 
   for (const slider of sliders) {
-    const p3 = calcSlider(
-      points[slider.p1],
-      points[slider.p2],
-      slider.len,
-    );
+    const p3 = calcSlider(points[slider.p1], points[slider.p2], slider.len);
     if (!p3) {
       return null;
     }
@@ -163,6 +153,7 @@ function nullthrows<T>(x: ?T): T {
 function movePoint(t: T, theta: number, ref: Ref, p: Point): void {
   if (t.grounds[ref]) {
     t.grounds[ref] = [...p];
+    t.onChange(t);
     return;
   }
 
@@ -175,6 +166,7 @@ function movePoint(t: T, theta: number, ref: Ref, p: Point): void {
       const thetaDesired = (Math.atan2(y, x) + Math.PI * 2) % (Math.PI * 2);
       rotary.phase = thetaDesired - theta;
       rotary.len = len;
+      t.onChange(t);
       return;
     }
   }
@@ -219,6 +211,8 @@ function movePoint(t: T, theta: number, ref: Ref, p: Point): void {
   for (const {pointRef, lenRef, index} of hingePoints) {
     t.hinges[index][lenRef] = euclid(p, points[pointRef]);
   }
+
+  t.onChange(t);
 }
 
 function addJoint(t: T, theta: number, p1: Point, p3: Point, ref: Ref): void {
@@ -254,6 +248,7 @@ function addJoint(t: T, theta: number, p1: Point, p3: Point, ref: Ref): void {
 
   t.grounds[p1Ref] = p1;
   t.refCount += 2;
+  t.onChange(t);
 }
 
 function addCoupler(
@@ -292,6 +287,7 @@ function addCoupler(
   }
 
   t.refCount += 1;
+  t.onChange(t);
 }
 
 function calcPath(t: T, ref: Ref, n: number): Array<Point> {
@@ -316,26 +312,26 @@ function optimize(t: T, ref: Ref, path: Array<Point>): void {
       return;
     }
     const prevError = euclidPath(path, prevPath);
-    const {alpha} = t;
+    const {optimizeStepSize} = t;
     const prevGrounds = {};
     for (const ref of Object.keys(t.grounds)) {
       prevGrounds[ref] = [...t.grounds[ref]];
-      t.grounds[ref][0] += (Math.random() - 0.5) * alpha;
-      t.grounds[ref][1] += (Math.random() - 0.5) * alpha;
+      t.grounds[ref][0] += (Math.random() - 0.5) * optimizeStepSize;
+      t.grounds[ref][1] += (Math.random() - 0.5) * optimizeStepSize;
     }
 
     const prevRotaries = [];
     for (const rotary of t.rotaries) {
       prevRotaries.push({...rotary, len: rotary.len, phase: rotary.phase});
-      rotary.len += (Math.random() - 0.5) * alpha;
-      rotary.phase += (Math.random() - 0.5) * 10 * alpha;
+      rotary.len += (Math.random() - 0.5) * optimizeStepSize;
+      rotary.phase += (Math.random() - 0.5) * 10 * optimizeStepSize;
     }
 
     const prevHinges = [];
     for (const hinge of t.hinges) {
       prevHinges.push({...hinge, len1: hinge.len1, len2: hinge.len2});
-      hinge.len1 += (Math.random() - 0.5) * alpha;
-      hinge.len2 += (Math.random() - 0.5) * alpha;
+      hinge.len1 += (Math.random() - 0.5) * optimizeStepSize;
+      hinge.len2 += (Math.random() - 0.5) * optimizeStepSize;
     }
 
     const currentPath = calcPath(t, ref, path.length);
@@ -349,6 +345,8 @@ function optimize(t: T, ref: Ref, path: Array<Point>): void {
         t.grounds = prevGrounds;
         t.rotaries = prevRotaries;
         t.hinges = prevHinges;
+      } else {
+        t.onChange(t);
       }
     }
 
@@ -371,12 +369,12 @@ function parseRef(ref: Ref): {|kind: string, num: number|} {
   return {kind: match[1], num: Number(match[2])};
 }
 
-function scaleAlpha(t: T, scale: number): void {
-  t.alpha *= scale;
-  console.log(t.alpha);
+function scaleOptimizeStepSize(t: T, scale: number): void {
+  t.optimizeStepSize *= scale;
+  console.log(t.optimizeStepSize);
 }
 
-function make(spec: Spec): T {
+function make(spec: $Exact<Spec>, onChange: T => mixed): T {
   let refCount = 0;
 
   for (const ref of Object.keys(spec.grounds)) {
@@ -400,7 +398,116 @@ function make(spec: Spec): T {
     );
   }
 
-  return {...spec, refCount, optimizing: false, alpha: 0.03};
+  return {
+    ...spec,
+    refCount,
+    optimizing: false,
+    optimizeStepSize: 0.03,
+    onChange,
+  };
+}
+
+type SpecCompressed = [
+  /* ground xs */
+  Array<number>,
+  /* ground ys */
+  Array<number>,
+  /* rotaries */
+  Array<[number, number, number, number]>,
+  /* hinges */
+  Array<[number, number, number, number, number]>,
+  /* sliders */
+  Array<[number, number, number, number]>,
+];
+
+function round(x) {
+  const s = 1000;
+  return Math.round(x * s) / s;
+}
+
+function compress({grounds, rotaries, hinges, sliders}: Spec): SpecCompressed {
+  const groundXs = [];
+  const groundYs = [];
+
+  const m: Map<string, number> = new Map();
+  const indexFromRef = (ref: string): number => {
+    let index = m.get(ref);
+    if (index == null) {
+      index = m.size;
+      m.set(ref, index);
+    }
+    return index;
+  };
+
+  Object.keys(grounds).forEach((pointRef: string, index) => {
+    const [x, y] = grounds[pointRef];
+    indexFromRef(pointRef);
+    groundXs.push(round(x));
+    groundYs.push(round(y));
+  });
+
+  return [
+    groundXs,
+    groundYs,
+    rotaries.map(({p1, p2, len, phase}) => [
+      indexFromRef(p1),
+      indexFromRef(p2),
+      round(len),
+      round(phase),
+    ]),
+    hinges.map(({p1, p2, p3, len1, len2}) => [
+      indexFromRef(p1),
+      indexFromRef(p2),
+      indexFromRef(p3),
+      round(len1),
+      round(len2),
+    ]),
+    sliders.map(({p1, p2, p3, len}) => [
+      indexFromRef(p1),
+      indexFromRef(p2),
+      indexFromRef(p3),
+      round(len),
+    ]),
+  ];
+}
+
+function decompress([
+  groundXs,
+  groundYs,
+  rotaries,
+  hinges,
+  sliders,
+]: SpecCompressed): $Exact<Spec> {
+  const grounds = {};
+  groundXs.forEach((x, index) => {
+    grounds['p' + index] = [x, groundYs[index]];
+  });
+  return {
+    grounds,
+    rotaries: rotaries.map(([p1Index, p2Index, len, phase]) => {
+      const p1 = 'p' + p1Index;
+      const p2 = 'p' + p2Index;
+      return {p1, p2, len, phase};
+    }),
+    hinges: hinges.map(([p1Index, p2Index, p3Index, len1, len2]) => {
+      const p1 = 'p' + p1Index;
+      const p2 = 'p' + p2Index;
+      const p3 = 'p' + p3Index;
+      return {p1, p2, p3, len1, len2};
+    }),
+    sliders: sliders.map(([p1Index, p2Index, p3Index, len]) => {
+      const p1 = 'p' + p1Index;
+      const p2 = 'p' + p2Index;
+      const p3 = 'p' + p3Index;
+      return {p1, p2, p3, len};
+    }),
+  };
+}
+
+function serialize({grounds, hinges, rotaries, sliders}: T): string {
+  return JSON.stringify(
+    decompress(compress({grounds, hinges, rotaries, sliders})),
+  );
 }
 
 module.exports = {
@@ -413,5 +520,8 @@ module.exports = {
   calcPath,
   optimize,
   stopOptimizing,
-  scaleAlpha,
+  scaleOptimizeStepSize,
+  serialize,
+  decompress,
+  compress,
 };

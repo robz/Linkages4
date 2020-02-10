@@ -178,6 +178,7 @@ function reduceMouseUserState(
 }
 
 const CLICK_THRESHOLD = 0.05;
+const SPEED = 0.001;
 
 function draw(
   drawing: TDrawing,
@@ -188,7 +189,7 @@ function draw(
   Drawing.clearCanvas(drawing);
   Drawing.drawAxis(drawing);
 
-  const theta = time * 0.005;
+  const theta = time * SPEED;
   const data = Linkage.calc(linkage, theta);
   if (data) {
     const {points, lines} = data;
@@ -233,7 +234,7 @@ function draw(
 }
 
 function onMouseDown(time: number, mousePoint: TPoint, appState: T): void {
-  const theta = time * 0.005;
+  const theta = time * SPEED;
   const point = Linkage.getPoint(
     appState.linkage,
     theta,
@@ -268,7 +269,7 @@ function onMouseMove(time: number, mousePoint: TPoint, appState: T): void {
     return;
   }
 
-  const theta = time * 0.005;
+  const theta = time * SPEED;
   Linkage.movePoint(linkage, theta, mouseRef, mousePoint);
 
   appState.mouseState = {...mouseState, movedWhileDown: true};
@@ -284,7 +285,7 @@ function onMouseUp(time: number, mousePoint: TPoint, appState: T): void {
     Linkage.optimize(linkage, optimizeState.ref, optimizeState.path);
     appState.optimizeState = {...optimizeState, type: 'optimizing'};
   } else if (!mouseState.movedWhileDown) {
-    const theta = time * 0.005;
+    const theta = time * SPEED;
     let newClickState = reduceMouseClickState(
       clickState,
       mouseState,
@@ -329,11 +330,11 @@ function onKeyDown(time: number, key: string, appState: T): void {
       break;
 
     case '+':
-      Linkage.scaleAlpha(appState.linkage, 1.01);
+      Linkage.scaleOptimizeStepSize(appState.linkage, 1.01);
       break;
 
     case '-':
-      Linkage.scaleAlpha(appState.linkage, 0.99);
+      Linkage.scaleOptimizeStepSize(appState.linkage, 0.99);
       break;
   }
 }
