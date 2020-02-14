@@ -5,6 +5,7 @@ import type {T as TLinkage} from './Linkage';
 const Drawing = require('./Drawing');
 const Linkage = require('./Linkage');
 const UI = require('./UI');
+const nullthrows = require('./nullthrows');
 
 const textarea = document.getElementById('linkage_serialized');
 if (!(textarea instanceof HTMLTextAreaElement)) {
@@ -41,8 +42,10 @@ function writeSerializedLinkage(linkage: TLinkage) {
 const defaultLinkageSpec = {
   grounds: {
     p1: [0, 0],
+    /*
     p4: [0.3, 0],
-    /*p5: [-0.3, 0],*/
+    p5: [-0.3, 0],
+    */
   },
   rotaries: [
     {
@@ -53,6 +56,7 @@ const defaultLinkageSpec = {
     },
   ],
   hinges: [
+    /*
     {
       len1: 0.4,
       len2: 0.4,
@@ -60,27 +64,37 @@ const defaultLinkageSpec = {
       p2: 'p4',
       p3: 'p3',
     },
+    */
   ],
   sliders: [
     /*
-        {
-          len: 0.7,
-          p1: 'p2',
-          p2: 'p5',
-          p3: 'p6',
-        },
-      */
+    {
+      len: 0.7,
+      p1: 'p2',
+      p2: 'p5',
+      p3: 'p6',
+    },
+    */
   ],
 };
 
 const searchData = window.location.search.split('linkage=');
-const linkageSpec =
+const linkageSpec = defaultLinkageSpec;
+/*
   searchData.length === 2
     ? Linkage.decompress(JSON.parse(decodeURI(searchData[1])))
     : defaultLinkageSpec;
+    */
 
 const linkage = Linkage.make(linkageSpec, writeSerializedLinkage);
 writeSerializedLinkage(linkage);
+
+const ui = UI.make(linkage);
+
+nullthrows(document.getElementById('slider')).onclick = () => {
+  UI.onChangeMode(ui, 'slider');
+  console.log(ui);
+};
 
 Drawing.start(
   Drawing.make('canvas0', window),
@@ -89,5 +103,5 @@ Drawing.start(
   UI.onMouseMove,
   UI.onMouseUp,
   UI.onKeyDown,
-  UI.make(linkage),
+  ui,
 );

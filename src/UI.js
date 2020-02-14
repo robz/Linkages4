@@ -9,6 +9,7 @@ const Linkage = require('./Linkage');
 
 const {euclid} = require('./Point');
 
+type Mode = 'rotary' | 'slider' | 'hinge';
 type _ClickState =
   | {|type: 'none'|}
   | {|type: 'p', ref: Ref|}
@@ -18,7 +19,7 @@ type _ClickState =
   | {|type: 'pg' | 'gp', ref: Ref, p: TPoint|}
   | {|type: 'ppg' | 'pgp' | 'gpp', ref1: Ref, ref2: Ref, p: TPoint|}
   | {|type: 'pgg' | 'gpg' | 'ggp', ref: Ref, p1: TPoint, p2: TPoint|};
-type ClickState = $ReadOnly<_ClickState>;
+type ClickState = $ReadOnly<{..._ClickState, mode: Mode}>;
 
 type MouseState = $ReadOnly<{|
   pointRef: ?Ref,
@@ -80,41 +81,54 @@ function reduceMouseClickState(
   mouseState: MouseState,
   mousePoint: TPoint,
 ): ClickState {
+  const mode = clickState.mode;
   const ref = mouseState.pointRef;
   if (ref) {
     switch (clickState.type) {
       case 'none':
-        return {type: 'p', ref};
+        return {type: 'p', ref, mode};
 
       case 'p':
-        return {type: 'pp', ref1: clickState.ref, ref2: ref};
+        return {type: 'pp', ref1: clickState.ref, ref2: ref, mode};
 
       case 'g':
-        return {type: 'gp', ref, p: clickState.p};
+        return {type: 'gp', ref, p: clickState.p, mode};
 
       case 'pg':
-        return {type: 'pgp', ref1: clickState.ref, ref2: ref, p: clickState.p};
+        return {
+          type: 'pgp',
+          ref1: clickState.ref,
+          ref2: ref,
+          p: clickState.p,
+          mode,
+        };
 
       case 'gg':
-        return {type: 'ggp', ref, p1: clickState.p1, p2: clickState.p2};
+        return {type: 'ggp', ref, p1: clickState.p1, p2: clickState.p2, mode};
 
       case 'gp':
-        return {type: 'gpp', ref1: clickState.ref, ref2: ref, p: clickState.p};
+        return {
+          type: 'gpp',
+          ref1: clickState.ref,
+          ref2: ref,
+          p: clickState.p,
+          mode,
+        };
 
       default:
-        return {type: 'none'};
+        return {type: 'none', mode};
     }
   }
 
   switch (clickState.type) {
     case 'none':
-      return {type: 'g', p: mousePoint};
+      return {type: 'g', p: mousePoint, mode};
 
     case 'g':
-      return {type: 'gg', p1: clickState.p, p2: mousePoint};
+      return {type: 'gg', p1: clickState.p, p2: mousePoint, mode};
 
     case 'p':
-      return {type: 'pg', ref: clickState.ref, p: mousePoint};
+      return {type: 'pg', ref: clickState.ref, p: mousePoint, mode};
 
     case 'pg':
       return {
@@ -122,6 +136,7 @@ function reduceMouseClickState(
         ref: clickState.ref,
         p1: clickState.p,
         p2: mousePoint,
+        mode,
       };
 
     case 'gp':
@@ -130,6 +145,7 @@ function reduceMouseClickState(
         ref: clickState.ref,
         p1: clickState.p,
         p2: mousePoint,
+        mode,
       };
 
     case 'pp':
@@ -138,10 +154,11 @@ function reduceMouseClickState(
         ref1: clickState.ref1,
         ref2: clickState.ref2,
         p: mousePoint,
+        mode,
       };
 
     default:
-      return {type: 'none'};
+      return {type: 'none', mode};
   }
 }
 
@@ -150,18 +167,26 @@ function reduceMouseUserState(
   theta: number,
   linkage: TLinkage,
 ): ClickState {
+  const mode = clickState.mode;
   switch (clickState.type) {
     case 'ggp':
     case 'gpg': {
       const {p1, p2, ref} = clickState;
       Linkage.addJoint(linkage, theta, p1, p2, ref);
-      return {type: 'none'};
+      return {type: 'none', mode};
     }
 
     case 'pgg': {
       const {p1, p2, ref} = clickState;
-      Linkage.addJoint(linkage, theta, p2, p1, ref);
-      return {type: 'none'};
+      switch (mode) {
+        case 'rotary':
+          throw new Error('wat');
+        case 'hinge':
+          Linkage.addJoint(linkage, theta, p2, p1, ref);
+        case 'slider':
+          Linkage.addSlider(linkage, theta, ref, p1, p2);
+      }
+      return {type: 'none', mode};
     }
 
     case 'gpp':
@@ -169,7 +194,7 @@ function reduceMouseUserState(
     case 'ppg': {
       const {p, ref1, ref2} = clickState;
       Linkage.addCoupler(linkage, theta, p, ref1, ref2);
-      return {type: 'none'};
+      return {type: 'none', mode};
     }
 
     default:
@@ -305,7 +330,7 @@ function onMouseUp(time: number, mousePoint: TPoint, appState: T): void {
 function onKeyDown(time: number, key: string, appState: T): void {
   switch (key) {
     case 'Escape':
-      appState.clickState = {type: 'none'};
+      appState.clickState = {type: 'none', mode: 'slider'};
       Linkage.stopOptimizing(appState.linkage);
       break;
 
@@ -316,7 +341,7 @@ function onKeyDown(time: number, key: string, appState: T): void {
         } else {
           appState.traceState.ref = appState.clickState.ref;
         }
-        appState.clickState = {type: 'none'};
+        appState.clickState = {type: 'none', mode: 'slider'};
       }
       break;
 
@@ -339,11 +364,15 @@ function onKeyDown(time: number, key: string, appState: T): void {
   }
 }
 
+function onChangeMode(t: T, mode: Mode) {
+  t.clickState = {...t.clickState, mode};
+}
+
 function make(linkage: TLinkage): T {
   return {
     linkage,
     mouseState: null,
-    clickState: {type: 'none'},
+    clickState: {type: 'none', mode: 'slider'},
     traceState: {ref: null},
     optimizeState: null,
   };
@@ -356,4 +385,5 @@ module.exports = {
   onMouseUp,
   onMouseMove,
   onKeyDown,
+  onChangeMode,
 };

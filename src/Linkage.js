@@ -3,6 +3,7 @@
 import type {T as Point} from './Point';
 
 const {euclid, euclidPath} = require('./Point');
+const nullthrows = require('./nullthrows');
 
 export opaque type Ref = string;
 
@@ -143,13 +144,6 @@ function getPoint(
   return null;
 }
 
-function nullthrows<T>(x: ?T): T {
-  if (x == null) {
-    throw new Error('nullthrows');
-  }
-  return x;
-}
-
 function movePoint(t: T, theta: number, ref: Ref, p: Point): void {
   if (t.grounds[ref]) {
     t.grounds[ref] = [...p];
@@ -203,13 +197,17 @@ function movePoint(t: T, theta: number, ref: Ref, p: Point): void {
     }
   });
 
-  if (hingePoints.length === 0) {
-    throw new Error(ref + ' is not a valid point');
+  const {points, lines} = nullthrows(calc(t, theta));
+  if (hingePoints.length !== 0) {
+    for (const {pointRef, lenRef, index} of hingePoints) {
+      t.hinges[index][lenRef] = euclid(p, points[pointRef]);
+    }
   }
 
-  const {points, lines} = nullthrows(calc(t, theta));
-  for (const {pointRef, lenRef, index} of hingePoints) {
-    t.hinges[index][lenRef] = euclid(p, points[pointRef]);
+  for (const slider of t.sliders) {
+    if (slider.p3 === ref) {
+      slider.len = euclid(p, points[slider.p1]);
+    }
   }
 
   t.onChange(t);
@@ -287,6 +285,26 @@ function addCoupler(
   }
 
   t.refCount += 1;
+  t.onChange(t);
+}
+
+function addSlider(t: T, theta: number, p1: Ref, p2: Point, p3: Point): void {
+  const p2Ref = `p${t.refCount + 1}`;
+  const p3Ref = `p${t.refCount + 2}`;
+
+  const {points, lines} = nullthrows(calc(t, theta));
+
+  const len = euclid(points[p1], p3);
+
+  t.sliders.push({
+    len,
+    p1: p1,
+    p2: p2Ref,
+    p3: p3Ref,
+  });
+
+  t.grounds[p2Ref] = p2;
+  t.refCount += 2;
   t.onChange(t);
 }
 
@@ -395,6 +413,15 @@ function make(spec: $Exact<Spec>, onChange: T => mixed): T {
       parseRef(hinge.p1).num,
       parseRef(hinge.p2).num,
       parseRef(hinge.p3).num,
+    );
+  }
+
+  for (const slider of spec.sliders) {
+    refCount = Math.max(
+      refCount,
+      parseRef(slider.p1).num,
+      parseRef(slider.p2).num,
+      parseRef(slider.p3).num,
     );
   }
 
@@ -517,6 +544,7 @@ module.exports = {
   movePoint,
   addJoint,
   addCoupler,
+  addSlider,
   calcPath,
   optimize,
   stopOptimizing,
