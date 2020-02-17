@@ -12,19 +12,19 @@ if (!(textarea instanceof HTMLTextAreaElement)) {
   throw new Error('no linkage_serialized text area');
 }
 
-let id = null;
+let urlSaverJobID = null;
 function writeSerializedLinkage(linkage: TLinkage) {
   const newValue = Linkage.serialize(linkage);
   if (textarea.value === newValue) {
     return;
   }
 
-  // save to UI
+  // save to visible textarea
   textarea.value = newValue;
 
   // save to URL, throttled
-  const myID = setTimeout(() => {
-    if (myID !== id) {
+  const jobID = setTimeout(() => {
+    if (jobID !== urlSaverJobID) {
       return;
     }
     const newURL =
@@ -36,7 +36,7 @@ function writeSerializedLinkage(linkage: TLinkage) {
       encodeURI(JSON.stringify(Linkage.compress(linkage)));
     window.history.pushState({path: newURL}, '', newURL);
   }, 100);
-  id = myID;
+  urlSaverJobID = jobID;
 }
 
 const defaultLinkageSpec = {
@@ -79,17 +79,15 @@ const defaultLinkageSpec = {
 };
 
 const searchData = window.location.search.split('linkage=');
-const linkageSpec = defaultLinkageSpec;
-/*
+const linkageSpec =
   searchData.length === 2
     ? Linkage.decompress(JSON.parse(decodeURI(searchData[1])))
     : defaultLinkageSpec;
-    */
 
 const linkage = Linkage.make(linkageSpec, writeSerializedLinkage);
 writeSerializedLinkage(linkage);
 
-const defaultMode = 'slider';
+const defaultMode = 'hinge';
 const ui = UI.make(linkage, defaultMode);
 
 ['rotary', 'hinge', 'slider'].forEach(id => {

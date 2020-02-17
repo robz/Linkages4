@@ -186,7 +186,16 @@ function reduceMouseUserState(
           Linkage.addJoint(linkage, theta, p1, p2, ref);
           break;
         case 'slider':
-          Linkage.addSlider(linkage, theta, ref, p1, p2);
+          const success = Linkage.addSlider(linkage, theta, ref, p1, p2);
+          if (!success) {
+            // TODO: make a general "undo" function?
+            switch (clickState.type) {
+              case 'ggp':
+                return {type: 'gg', p1, p2, mode};
+              case 'gpg':
+                return {type: 'gp', p: p1, ref, mode};
+            }
+          }
           break;
       }
       return {type: 'none', mode};
@@ -199,7 +208,11 @@ function reduceMouseUserState(
           Linkage.addJoint(linkage, theta, p2, p1, ref);
           break;
         case 'slider':
-          Linkage.addSlider(linkage, theta, ref, p1, p2);
+          const success = Linkage.addSlider(linkage, theta, ref, p1, p2);
+          if (!success) {
+            // TODO: make a general "undo" function?
+            return {type: 'pg', p: p1, ref, mode};
+          }
           break;
       }
       return {type: 'none', mode};
@@ -226,7 +239,7 @@ function reduceMouseUserState(
 }
 
 const CLICK_THRESHOLD = 0.05;
-const SPEED = 0.001;
+const SPEED = 0.002;
 
 function draw(
   drawing: TDrawing,

@@ -422,10 +422,10 @@ function optimize(t: T, ref: Ref, path: Array<Point>): void {
     }
 
     if (t.optimizing) {
-      setTimeout(tweak, 5);
+      setTimeout(tweak, 0);
     }
   }
-  setTimeout(tweak, 5);
+  setTimeout(tweak, 0);
 }
 
 function stopOptimizing(t: T) {
@@ -551,6 +551,10 @@ function compress({grounds, rotaries, hinges, sliders}: Spec): SpecCompressed {
   ];
 }
 
+function refFromIndex(index: number): Ref {
+  return 'p' + index;
+}
+
 function decompress([
   groundXs,
   groundYs,
@@ -559,28 +563,32 @@ function decompress([
   sliders,
 ]: SpecCompressed): $Exact<Spec> {
   const grounds = {};
+
   groundXs.forEach((x, index) => {
-    grounds['p' + index] = [x, groundYs[index]];
+    grounds[refFromIndex(index)] = [x, groundYs[index]];
   });
+
   return {
     grounds,
-    rotaries: rotaries.map(([p1Index, p2Index, len, phase]) => {
-      const p1 = 'p' + p1Index;
-      const p2 = 'p' + p2Index;
-      return {p1, p2, len, phase};
-    }),
-    hinges: hinges.map(([p1Index, p2Index, p3Index, len1, len2]) => {
-      const p1 = 'p' + p1Index;
-      const p2 = 'p' + p2Index;
-      const p3 = 'p' + p3Index;
-      return {p1, p2, p3, len1, len2};
-    }),
-    sliders: sliders.map(([p1Index, p2Index, p3Index, len]) => {
-      const p1 = 'p' + p1Index;
-      const p2 = 'p' + p2Index;
-      const p3 = 'p' + p3Index;
-      return {p1, p2, p3, len};
-    }),
+    rotaries: rotaries.map(([p1Index, p2Index, len, phase]) => ({
+      p1: refFromIndex(p1Index),
+      p2: refFromIndex(p2Index),
+      len,
+      phase,
+    })),
+    hinges: hinges.map(([p1Index, p2Index, p3Index, len1, len2]) => ({
+      p1: refFromIndex(p1Index),
+      p2: refFromIndex(p2Index),
+      p3: refFromIndex(p3Index),
+      len1,
+      len2,
+    })),
+    sliders: sliders.map(([p1Index, p2Index, p3Index, len]) => ({
+      p1: refFromIndex(p1Index),
+      p2: refFromIndex(p2Index),
+      p3: refFromIndex(p3Index),
+      len,
+    })),
   };
 }
 
