@@ -169,22 +169,38 @@ function reduceMouseUserState(
 ): ClickState {
   const mode = clickState.mode;
   switch (clickState.type) {
+    case 'gg': {
+      switch (mode) {
+        case 'rotary':
+          Linkage.addRotary(linkage, theta, clickState.p1, clickState.p2);
+          return {type: 'none', mode};
+      }
+      return clickState;
+    }
+
     case 'ggp':
     case 'gpg': {
       const {p1, p2, ref} = clickState;
-      Linkage.addJoint(linkage, theta, p1, p2, ref);
+      switch (mode) {
+        case 'hinge':
+          Linkage.addJoint(linkage, theta, p1, p2, ref);
+          break;
+        case 'slider':
+          Linkage.addSlider(linkage, theta, ref, p1, p2);
+          break;
+      }
       return {type: 'none', mode};
     }
 
     case 'pgg': {
       const {p1, p2, ref} = clickState;
       switch (mode) {
-        case 'rotary':
-          throw new Error('wat');
         case 'hinge':
           Linkage.addJoint(linkage, theta, p2, p1, ref);
+          break;
         case 'slider':
           Linkage.addSlider(linkage, theta, ref, p1, p2);
+          break;
       }
       return {type: 'none', mode};
     }
@@ -193,7 +209,14 @@ function reduceMouseUserState(
     case 'pgp':
     case 'ppg': {
       const {p, ref1, ref2} = clickState;
-      Linkage.addCoupler(linkage, theta, p, ref1, ref2);
+      switch (mode) {
+        case 'hinge':
+          Linkage.addCoupler(linkage, theta, p, ref1, ref2);
+          break;
+        case 'slider':
+          // ignore this
+          break;
+      }
       return {type: 'none', mode};
     }
 
@@ -330,7 +353,7 @@ function onMouseUp(time: number, mousePoint: TPoint, appState: T): void {
 function onKeyDown(time: number, key: string, appState: T): void {
   switch (key) {
     case 'Escape':
-      appState.clickState = {type: 'none', mode: 'slider'};
+      appState.clickState = {type: 'none', mode: appState.clickState.mode};
       Linkage.stopOptimizing(appState.linkage);
       break;
 
@@ -341,7 +364,7 @@ function onKeyDown(time: number, key: string, appState: T): void {
         } else {
           appState.traceState.ref = appState.clickState.ref;
         }
-        appState.clickState = {type: 'none', mode: 'slider'};
+        appState.clickState = {type: 'none', mode: appState.clickState.mode};
       }
       break;
 
@@ -368,11 +391,11 @@ function onChangeMode(t: T, mode: Mode) {
   t.clickState = {...t.clickState, mode};
 }
 
-function make(linkage: TLinkage): T {
+function make(linkage: TLinkage, mode: Mode): T {
   return {
     linkage,
     mouseState: null,
-    clickState: {type: 'none', mode: 'slider'},
+    clickState: {type: 'none', mode},
     traceState: {ref: null},
     optimizeState: null,
   };

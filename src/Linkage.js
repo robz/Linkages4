@@ -97,27 +97,50 @@ function calc(
     lines.push([points[rotary.p1], points[rotary.p2]]);
   }
 
-  for (const hinge of hinges) {
-    const p3 = calcHinge(
-      points[hinge.p1],
-      points[hinge.p2],
-      hinge.len1,
-      hinge.len2,
-    );
-    if (!p3) {
-      return null;
-    }
-    points[hinge.p3] = p3;
-    lines.push([points[hinge.p1], p3, points[hinge.p2]]);
-  }
+  let progress = true;
+  while (progress) {
+    progress = false;
 
-  for (const slider of sliders) {
-    const p3 = calcSlider(points[slider.p1], points[slider.p2], slider.len);
-    if (!p3) {
-      return null;
+    for (const hinge of hinges) {
+      if (!points[hinge.p1] || !points[hinge.p2]) {
+        // dependencies not ready
+        continue;
+      }
+      if (points[hinge.p3]) {
+        // already calculated
+        continue;
+      }
+      const p3 = calcHinge(
+        points[hinge.p1],
+        points[hinge.p2],
+        hinge.len1,
+        hinge.len2,
+      );
+      if (!p3) {
+        return null;
+      }
+      points[hinge.p3] = p3;
+      lines.push([points[hinge.p1], p3, points[hinge.p2]]);
+      progress = true;
     }
-    points[slider.p3] = p3;
-    lines.push([points[slider.p1], p3]);
+
+    for (const slider of sliders) {
+      if (!points[slider.p1] || !points[slider.p2]) {
+        // dependencies not ready
+        continue;
+      }
+      if (points[slider.p3]) {
+        // already calculated
+        continue;
+      }
+      const p3 = calcSlider(points[slider.p1], points[slider.p2], slider.len);
+      if (!p3) {
+        return null;
+      }
+      points[slider.p3] = p3;
+      lines.push([points[slider.p1], p3]);
+      progress = true;
+    }
   }
 
   return {points, lines};
@@ -213,6 +236,22 @@ function movePoint(t: T, theta: number, ref: Ref, p: Point): void {
   t.onChange(t);
 }
 
+function addRotary(t: T, theta: number, p1: Point, p2: Point): void {
+  const p1Ref = `p${t.refCount + 1}`;
+  const p2Ref = `p${t.refCount + 2}`;
+
+  t.rotaries.push({
+    len: euclid(p1, p2),
+    p1: p1Ref,
+    p2: p2Ref,
+    phase: Math.atan2(p2[1] - p1[1], p2[0] - p1[0]) - theta,
+  });
+
+  t.grounds[p1Ref] = p1;
+  t.refCount += 2;
+  t.onChange(t);
+}
+
 function addJoint(t: T, theta: number, p1: Point, p3: Point, ref: Ref): void {
   const p1Ref = `p${t.refCount + 1}`;
   const p3Ref = `p${t.refCount + 2}`;
@@ -288,7 +327,13 @@ function addCoupler(
   t.onChange(t);
 }
 
-function addSlider(t: T, theta: number, p1: Ref, p2: Point, p3: Point): void {
+function addSlider(
+  t: T,
+  theta: number,
+  p1: Ref,
+  p2: Point,
+  p3: Point,
+): boolean {
   const p2Ref = `p${t.refCount + 1}`;
   const p3Ref = `p${t.refCount + 2}`;
 
@@ -302,10 +347,18 @@ function addSlider(t: T, theta: number, p1: Ref, p2: Point, p3: Point): void {
     p2: p2Ref,
     p3: p3Ref,
   });
-
   t.grounds[p2Ref] = p2;
   t.refCount += 2;
+
+  if (!calc(t, theta)) {
+    t.sliders.pop();
+    delete t.grounds[p2Ref];
+    t.refCount -= 2;
+    return false;
+  }
+
   t.onChange(t);
+  return true;
 }
 
 function calcPath(t: T, ref: Ref, n: number): Array<Point> {
@@ -542,6 +595,7 @@ module.exports = {
   make,
   getPoint,
   movePoint,
+  addRotary,
   addJoint,
   addCoupler,
   addSlider,

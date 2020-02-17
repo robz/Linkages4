@@ -89,12 +89,19 @@ const linkageSpec = defaultLinkageSpec;
 const linkage = Linkage.make(linkageSpec, writeSerializedLinkage);
 writeSerializedLinkage(linkage);
 
-const ui = UI.make(linkage);
+const defaultMode = 'slider';
+const ui = UI.make(linkage, defaultMode);
 
-nullthrows(document.getElementById('slider')).onclick = () => {
-  UI.onChangeMode(ui, 'slider');
-  console.log(ui);
-};
+['rotary', 'hinge', 'slider'].forEach(id => {
+  const button = document.getElementById(id);
+  if (!(button instanceof HTMLInputElement)) {
+    throw new Error(id + ' is not a radio button option');
+  }
+  button.onclick = () => UI.onChangeMode(ui, id);
+  if (id === defaultMode) {
+    button.checked = true;
+  }
+});
 
 Drawing.start(
   Drawing.make('canvas0', window),
