@@ -1,0 +1,36 @@
+<html>
+  <head>
+    <style>
+      body {
+        margin: 0;
+      }
+      #components {
+        margin: 10px;
+        position: fixed;
+        display: flex;
+        flex-direction: column;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="components">
+      <div>
+        <input type="radio" id="rotary" name="component" value="rotary" />
+        <label for="rotary">rotary</label>
+
+        <input type="radio" id="hinge" name="component" value="hinge" />
+        <label for="hinge">hinge</label>
+
+        <input type="radio" id="slider" name="component" value="slider" />
+        <label for="slider">slider</label>
+      </div>
+      <textarea id="linkage_serialized" readonly></textarea>
+    </div>
+    <div id="container">
+      <div id="canvas0_container">
+        <canvas id="canvas0"></canvas>
+      </div>
+    </div>
+    <script src="index.js"></script>
+  </body>
+</html>
