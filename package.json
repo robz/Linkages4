@@ -16,6 +16,7 @@
     "webpack-cli": "^3.3.10"
   },
   "dependencies": {
-    "drawing": "./drawing"
+    "drawing": "./drawing",
+    "flow_invariants": "./flow_invariants"
   }
 }

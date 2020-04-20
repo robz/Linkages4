@@ -5,7 +5,7 @@ import type {T as TLinkage} from './Linkage';
 const Drawing = require('drawing');
 const Linkage = require('./Linkage');
 const UI = require('./UI');
-const nullthrows = require('./nullthrows');
+const {nullthrows} = require('flow_invariants');
 
 const textarea = document.getElementById('linkage_serialized');
 if (!(textarea instanceof HTMLTextAreaElement)) {
