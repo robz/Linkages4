@@ -4,6 +4,7 @@ import type {T as TLinkage} from './Linkage';
 
 const Drawing = require('drawing');
 const Linkage = require('./Linkage');
+const LinkageURL = require('./LinkageURL');
 const UI = require('./UI');
 const {nullthrows} = require('flow_invariants');
 
@@ -14,15 +15,12 @@ if (!(textarea instanceof HTMLTextAreaElement)) {
 
 let urlSaverJobID = null;
 function writeSerializedLinkage(linkage: TLinkage) {
-  const newValue = Linkage.serialize(linkage);
+  const newValue = JSON.stringify(linkage);
   if (textarea.value === newValue) {
     return;
   }
 
-  // save to visible textarea
-  textarea.value = newValue;
-
-  // save to URL, throttled
+  // save, throttled
   const jobID = setTimeout(() => {
     if (jobID !== urlSaverJobID) {
       return;
@@ -32,9 +30,16 @@ function writeSerializedLinkage(linkage: TLinkage) {
       '//' +
       window.location.host +
       window.location.pathname +
-      '?linkage=' +
-      encodeURI(JSON.stringify(Linkage.compress(linkage)));
+      '#' +
+      LinkageURL.make(LinkageURL.VERSIONS[0], linkage);
+
+    // save to URL
     window.history.pushState({path: newURL}, '', newURL);
+
+    // save to visible textarea
+    textarea.value = JSON.stringify(
+      Linkage.decompress(Linkage.compress(linkage)),
+    );
   }, 100);
   urlSaverJobID = jobID;
 }
@@ -78,11 +83,9 @@ const defaultLinkageSpec = {
   ],
 };
 
-const searchData = window.location.search.split('linkage=');
+const hash = window.location.hash;
 const linkageSpec =
-  searchData.length === 2
-    ? Linkage.decompress(JSON.parse(decodeURI(searchData[1])))
-    : defaultLinkageSpec;
+  hash.length > 1 ? LinkageURL.parse(hash) : defaultLinkageSpec;
 
 const linkage = Linkage.make(linkageSpec, writeSerializedLinkage);
 writeSerializedLinkage(linkage);

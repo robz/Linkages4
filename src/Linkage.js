@@ -12,7 +12,7 @@ const {
 
 export opaque type Ref = string;
 
-type Spec = $ReadOnly<{
+export type Spec = $ReadOnly<{
   grounds: {[string]: Point},
   rotaries: Array<{|len: number, p1: string, p2: string, phase: number|}>,
   hinges: Array<{|
@@ -618,12 +618,6 @@ function decompress(spec: mixed): $Exact<Spec> {
   };
 }
 
-function serialize({grounds, hinges, rotaries, sliders}: T): string {
-  return JSON.stringify(
-    decompress(compress({grounds, hinges, rotaries, sliders})),
-  );
-}
-
 module.exports = {
   calc,
   make,
@@ -637,7 +631,6 @@ module.exports = {
   optimize,
   stopOptimizing,
   scaleOptimizeStepSize,
-  serialize,
   decompress,
   compress,
 };

@@ -9,6 +9,7 @@
   innerHeight: number;
   location: {|
     protocol: string,
+    hash: string,
     host: string,
     pathname: string,
     search: string,

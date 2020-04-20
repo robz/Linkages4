@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "drawing": "./drawing",
-    "flow_invariants": "./flow_invariants"
+    "flow_invariants": "./flow_invariants",
+    "lz-string": "^1.4.4"
   }
 }
