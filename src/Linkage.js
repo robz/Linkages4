@@ -487,17 +487,21 @@ function make(spec: $Exact<Spec>, onChange: T => mixed): T {
   };
 }
 
+type n = number;
+type Tuple4Number = [n, n, n, n];
+type Tuple5Number = [n, n, n, n, n];
+
 type SpecCompressed = [
   /* ground xs */
   Array<number>,
   /* ground ys */
   Array<number>,
   /* rotaries */
-  Array<[number, number, number, number]>,
+  Array<Tuple4Number>,
   /* hinges */
-  Array<[number, number, number, number, number]>,
+  Array<Tuple5Number>,
   /* sliders */
-  Array<[number, number, number, number]>,
+  Array<Tuple4Number>,
 ];
 
 function round(x) {
@@ -555,18 +559,69 @@ function refFromIndex(index: number): Ref {
   return 'p' + index;
 }
 
-function decompress([
-  groundXs,
-  groundYs,
-  rotaries,
-  hinges,
-  sliders,
-]: SpecCompressed): $Exact<Spec> {
-  const grounds = {};
+function notNumberThrows(x: mixed): number {
+  if (typeof x !== 'number') {
+    throw new Error('not a number: ' + JSON.stringify(x));
+  }
+  return x;
+}
 
+function notTuple4NumberThrows(x: mixed): Tuple4Number {
+  if (
+    Array.isArray(x) &&
+    typeof x[0] === 'number' &&
+    typeof x[1] === 'number' &&
+    typeof x[2] === 'number' &&
+    typeof x[3] === 'number'
+  ) {
+    return [x[0], x[1], x[2], x[3]];
+  }
+  throw new Error('not a number: ' + JSON.stringify(x));
+}
+
+function notTuple5NumberThrows(x: mixed): Tuple5Number {
+  if (
+    Array.isArray(x) &&
+    typeof x[0] === 'number' &&
+    typeof x[1] === 'number' &&
+    typeof x[2] === 'number' &&
+    typeof x[3] === 'number' &&
+    typeof x[4] === 'number'
+  ) {
+    return [x[0], x[1], x[2], x[3], x[4]];
+  }
+  throw new Error('not a number: ' + JSON.stringify(x));
+}
+
+function decompress(spec: mixed): $Exact<Spec> {
+  if (
+    !(
+      Array.isArray(spec) &&
+      Array.isArray(spec[0]) &&
+      Array.isArray(spec[1]) &&
+      Array.isArray(spec[2]) &&
+      Array.isArray(spec[3]) &&
+      Array.isArray(spec[4])
+    )
+  ) {
+    throw new Error('Spec is malformed');
+  }
+
+  let [groundXs, groundYs, rotariesMixed, hingesMixed, slidersMixed] = spec;
+
+  const grounds: {[string]: Point} = {};
   groundXs.forEach((x, index) => {
-    grounds[refFromIndex(index)] = [x, groundYs[index]];
+    grounds[refFromIndex(index)] = [
+      notNumberThrows(x),
+      notNumberThrows(groundYs[index]),
+    ];
   });
+
+  const rotaries: Array<Tuple4Number> = rotariesMixed.map(
+    notTuple4NumberThrows,
+  );
+  const hinges: Array<Tuple5Number> = hingesMixed.map(notTuple5NumberThrows);
+  const sliders: Array<Tuple4Number> = slidersMixed.map(notTuple4NumberThrows);
 
   return {
     grounds,

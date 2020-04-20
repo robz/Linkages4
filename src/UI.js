@@ -1,10 +1,10 @@
 /* @flow */
 
-import type {T as TDrawing} from './Drawing';
+import type {T as TDrawing} from 'drawing';
 import type {T as TLinkage, Ref} from './Linkage';
 import type {T as TPoint} from './Point';
 
-const Drawing = require('./Drawing');
+const Drawing = require('drawing');
 const Linkage = require('./Linkage');
 
 const {euclid} = require('./Point');

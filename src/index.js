@@ -2,7 +2,7 @@
 
 import type {T as TLinkage} from './Linkage';
 
-const Drawing = require('./Drawing');
+const Drawing = require('drawing');
 const Linkage = require('./Linkage');
 const UI = require('./UI');
 const nullthrows = require('./nullthrows');
